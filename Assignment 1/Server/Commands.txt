@@ -1,0 +1,10 @@
+To build docker image :
+docker build -t web-server .
+
+To run docker container:
+docker run -p 5000:5000 -e SERVER_ID=1 web-server
+
+Note- 
+1. The -t flag is used to tag the image with a name.
+2. The -p flag is used to map the host port (5000) to the container port (5000). 
+3. The -e flag is used to set environment variables inside the container. Here the SERVER_ID variable is set to 1.
