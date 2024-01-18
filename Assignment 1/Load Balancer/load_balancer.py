@@ -13,10 +13,10 @@ class Server:
         self.request_queue = [] # list of request assigned for this server
 
 class client_request: 
-    def __init__(self, client_ip, client_port):
+    def __init__(self, client_ip, client_port,client_id):
         self.ip = client_ip
         self.port = client_port
-        self.client_id = random.randint(1,1000000)
+        self.id = client_id
     
 total_live_servers = 0 # total number of live servers
 gloal_request_id = 0
@@ -27,7 +27,9 @@ server_list = [] # list of Server objects
 request_map = {} # key: request_id, value: client_request
 server_map = {} # key: server_id, value: Server object
 
-request_allocator =[]*total_slots # Data structutre to store the request and servers assigned to each slot in the consistent hashing ring
+
+
+request_allocator =[None]*total_slots # Data structutre to store the request and servers assigned to each slot in the consistent hashing ring
 
 
 
@@ -37,18 +39,37 @@ def get_request_id(): # generate unique request id
     global_request_id += 1
     return global_request_id
 
-def get_request_hash(request_id): # generate hash value for the request
-    val = request_id*request_id +2*request_id+17
+def get_request_slot(request_id): # generate hash value and return slot number for the request
+    val = request_id*request_id + 2*request_id + 17
     return val % total_slots
 
+def get_server_slot(server_id, virtual_server_id): # generate hash value and return slot number for the server
+    val = server_id*server_id + virtual_server_id*virtual_server_id + 2*virtual_server_id + 25
+    return val % total_slots
 
-def serve_client_request():
-    pass
+def serve_client_request(client_ip, client_port):
+    req = client_request(client_ip,client_port, get_request_id())
+    request_map[req.id] = req
+    slot = get_request_slot(req.id)
+
+    pos=slot
+
+    while(request_allocator[pos] != None ): # find the next free slot( linear-probing)
+        pos+=1
+        if pos==slot:
+            print("Cannot serve request!! No Free slots")
+            return
+    
+    request_allocator[pos] = req # put the request object in the slot
+
+    
+
 
 class RequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/home':
-            Thread(target=serve_client_request).start()
+            client_ip, client_port = self.client_address
+            Thread(target=serve_client_request,args=(client_ip,client_port)).start()
 
 
         else:
