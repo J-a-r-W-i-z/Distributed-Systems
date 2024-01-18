@@ -1,5 +1,4 @@
-import http.server
-import socketserver
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from threading import Thread
 import os
 import json
@@ -62,26 +61,35 @@ def serve_client_request(client_ip, client_port):
     
     request_allocator[pos] = req # put the request object in the slot
 
-    
 
-
-class RequestHandler(http.server.SimpleHTTPRequestHandler):
+class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/home':
             client_ip, client_port = self.client_address
-            Thread(target=serve_client_request,args=(client_ip,client_port)).start()
+            serve_client_request(client_ip,client_port)
 
+        elif self.path == '/rep':
+            pass
+        
+        elif self.path == '/add':
+            pass
+
+        elif self.path == '/rm':
+            pass
 
         else:
             self.send_response(404)
             self.end_headers()
             self.wfile.write(b'Not Found')
     
-
-
     
 # Set up the server with the specified port (5000)
-PORT = 5000
-with socketserver.TCPServer(("", PORT), RequestHandler) as httpd:
-    print(f"Server running on port {port}")
-    httpd.serve_forever()
+port = 5000
+
+def run():
+    server = ThreadingHTTPServer(("", port), RequestHandler)
+    server.serve_forever()
+
+
+if __name__ == '__main__':
+    run()
