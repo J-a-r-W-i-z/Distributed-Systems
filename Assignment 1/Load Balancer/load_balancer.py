@@ -52,7 +52,7 @@ def serve_client_request(client_ip, client_port):
     request_map[req.id] = req
     slot = get_request_slot(req.id)
 
-    pos=slot
+    pos=slot [ (5,s1),(6,s2),(7,s3),(8,s4),(10,r1),(11,s7),(12,r2),(13,s9)]
 
     while(request_allocator[pos] != None ): # find the next free slot( linear-probing)
         pos+=1
@@ -83,5 +83,5 @@ class RequestHandler(http.server.SimpleHTTPRequestHandler):
 # Set up the server with the specified port (5000)
 PORT = 5000
 with socketserver.TCPServer(("", PORT), RequestHandler) as httpd:
-    print(f"Server running on port {port}")
+    print(f"Server running on port {PORT}")
     httpd.serve_forever()
