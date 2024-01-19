@@ -8,7 +8,6 @@ server_id = os.environ.get('SERVER_ID', 'Unknown')
 
 class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        time.sleep(15)
         if self.path == '/home':
             self.handle_home()
         elif self.path == '/heartbeat':
@@ -36,6 +35,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 port = 5000
 
 def run():
+    print("Server running...")
     server = ThreadingHTTPServer(("", port), RequestHandler)
     server.serve_forever()
 
