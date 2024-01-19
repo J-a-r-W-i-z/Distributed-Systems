@@ -7,8 +7,5 @@ WORKDIR /app
 # Copy the current directory contents into the container at /app
 COPY ./server.py /app
 
-# Make port 5000 available to the world outside this container
-EXPOSE 5000
-
 # Run server.py when the container launches
 CMD ["python", "server.py"]
