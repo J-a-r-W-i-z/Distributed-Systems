@@ -16,9 +16,10 @@ class client_request:
         self.ip = client_ip
         self.port = client_port
         self.id = client_id
+        self.is_served = False
     
-total_live_servers = 0 # total number of live servers
-gloal_request_id = 0
+total_live_servers = 3 # total number of live servers
+current_unserved_request = 0
 total_slots= 512 # total number of slots in the consistent hashing ring
 num_virtual_servers = 9 # number of virtual servers per physical server
 
@@ -32,11 +33,12 @@ request_allocator =[None]*total_slots # Data structutre to store the request and
 
 
 
-
 def get_request_id(): # generate unique request id
-    global global_request_id
-    global_request_id += 1
-    return global_request_id
+    number = random.randint(100000, 999999)
+    while number in request_map:
+        number = random.randint(100000, 999999)
+    return number
+    
 
 def get_request_slot(request_id): # generate hash value and return slot number for the request
     val = request_id*request_id + 2*request_id + 17
@@ -50,16 +52,23 @@ def serve_client_request(client_ip, client_port):
     req = client_request(client_ip,client_port, get_request_id())
     request_map[req.id] = req
     slot = get_request_slot(req.id)
-
-    pos=slot #[ (5,s1),(6,s2),(7,s3),(8,s4),(10,r1),(11,s7),(12,r2),(13,s9)]
-
-    while(request_allocator[pos] != None ): # find the next free slot( linear-probing)
-        pos+=1
-        if pos==slot:
-            print("Cannot serve request!! No Free slots")
-            return
     
-    request_allocator[pos] = req # put the request object in the slot
+    request_allocator[slot] = req # put the request object in the slot
+    print("Request " + str(req.id) + " is assigned to slot " + str(slot))
+
+def worker_function(id):
+    # Command to run
+    command = f'sudo docker run --name web-server_{id} --network assignment1_myNetwork --network-alias web-server_{id} -e SERVER_ID={id} -p 500{id}:5000 web-server'
+    res = os.popen(command).read()
+    exit()
+
+def spawn_server(id):
+    child_process = multiprocessing.Process(target=worker_function, args=(id,))
+    child_process.start()
+
+def remove_server(container_name):
+    os.system(f'sudo docker stop {container_name} && sudo docker rm {container_name}')
+
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -86,7 +95,28 @@ class RequestHandler(BaseHTTPRequestHandler):
 # Set up the server with the specified port (5000)
 port = 5000
 
-def run():
+def run(): 
+    # initialize N servers
+    for i in range(1,total_live_servers+1):
+        spawn_server(i)
+        server_id = i
+        server_ip = '127.0.0.1'
+        server_port = 5000 + i
+        server_list.append(Server(server_id,server_ip,server_port))
+        server_map[server_id] = server_list[i-1]
+        print("Server " + str(server_id) + " is running on port " + str(server_port))
+    
+    # Put into consistent hashing data structure
+    for i in range(1,total_live_servers+1):
+        for j in range(1,num_virtual_servers+1):
+            slot = get_server_slot(i,j)
+            # do probing 
+            while request_allocator[slot] != None:
+                slot = (slot+1)%total_slots
+            request_allocator[slot] = [server_map[i]]
+            print("Server " + str(i) + " is assigned to slot " + str(slot))
+    
+
     server = ThreadingHTTPServer(("", port), RequestHandler)
     server.serve_forever()
 
