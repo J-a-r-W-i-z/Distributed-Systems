@@ -52,9 +52,17 @@ def serve_client_request(client_ip, client_port):
     req = client_request(client_ip,client_port, get_request_id())
     request_map[req.id] = req
     slot = get_request_slot(req.id)
+
+    # lock the request allocator data structure using mutex lock
     
-    request_allocator[slot] = req # put the request object in the slot
+    request_allocator[slot].add(req) # put the request object in the slot
+
+    # release the mutex lock
+
+
+
     print("Request " + str(req.id) + " is assigned to slot " + str(slot))
+
 
 def worker_function(id):
     # Command to run
@@ -115,6 +123,12 @@ def run():
                 slot = (slot+1)%total_slots
             request_allocator[slot] = [server_map[i]]
             print("Server " + str(i) + " is assigned to slot " + str(slot))
+    
+    # create assigner thread
+
+    # create liveness checker thread
+
+    # run the load balancer
     
 
     server = ThreadingHTTPServer(("", port), RequestHandler)
