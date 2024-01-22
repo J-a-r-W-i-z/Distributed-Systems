@@ -1,8 +1,11 @@
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+import multiprocessing
 from threading import Thread
+import threading
 import os
 import json
 import random
+import requests
 
 class Server:
     def __init__(self, server_id,server_ip, server_port):
@@ -30,6 +33,11 @@ server_map = {} # key: server_id, value: Server object
 
 
 request_allocator =[None]*total_slots # Data structutre to store the request and servers assigned to each slot in the consistent hashing ring
+request_allocator_lock = threading.Lock()
+
+
+assigner_map={} # key: request_id, value: server object
+server_assignment_event = threading.Event()
 
 
 
@@ -47,21 +55,6 @@ def get_request_slot(request_id): # generate hash value and return slot number f
 def get_server_slot(server_id, virtual_server_id): # generate hash value and return slot number for the server
     val = server_id*server_id + virtual_server_id*virtual_server_id + 2*virtual_server_id + 25
     return val % total_slots
-
-def serve_client_request(client_ip, client_port):
-    req = client_request(client_ip,client_port, get_request_id())
-    request_map[req.id] = req
-    slot = get_request_slot(req.id)
-
-    # lock the request allocator data structure using mutex lock
-    
-    request_allocator[slot].add(req) # put the request object in the slot
-
-    # release the mutex lock
-
-
-
-    print("Request " + str(req.id) + " is assigned to slot " + str(slot))
 
 
 def worker_function(id):
@@ -83,7 +76,43 @@ class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/home':
             client_ip, client_port = self.client_address
-            serve_client_request(client_ip,client_port)
+            req = client_request(client_ip,client_port, get_request_id())
+            request_map[req.id] = req
+
+            
+
+            slot = get_request_slot(req.id)
+
+            # lock the request allocator data structure using mutex lock
+            with request_allocator_lock:
+                request_allocator[slot].add(req) # put the request object in the slot
+            # release the mutex lock
+            print("Request " + str(req.id) + " is assigned to slot " + str(slot))
+
+            # wait for the server assignment event
+            server_assignment_event.wait()
+            # make get request to the assigned server
+            server = assigner_map[req.id]
+            print("Request " + str(req.id) + " is assigned to server " + str(server.id))
+            try:
+                response = requests.get(f'http://{server.ip}:{server.port}/home')
+                # Forward the response as is
+                self.send_response(response.status_code)
+                for key, value in response.headers.items():
+                    self.send_header(key, value)
+                self.end_headers()
+                self.wfile.write(response.content)
+
+                # Check if the server returned a successful response
+                if response.status_code != 200:
+                    print(f"Request failed with status code: {response.status_code}")
+
+            except requests.exceptions.RequestException as e:
+                # Handle exceptions (e.g., connection error, timeout)
+                print(f"Request failed with exception: {e}")
+            except Exception as e:
+                # Handle other exceptions
+                print(f"An unexpected error occurred: {e}")
 
         elif self.path == '/rep':
             pass
