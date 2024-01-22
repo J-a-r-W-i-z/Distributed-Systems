@@ -25,6 +25,7 @@ total_live_servers = 3 # total number of live servers
 current_unserved_request = 0
 total_slots= 512 # total number of slots in the consistent hashing ring
 num_virtual_servers = 9 # number of virtual servers per physical server
+MAX_RETRY = 3
 
 server_list = [] # list of Server objects
 request_map = {} # key: request_id, value: client_request
@@ -79,40 +80,39 @@ class RequestHandler(BaseHTTPRequestHandler):
             req = client_request(client_ip,client_port, get_request_id())
             request_map[req.id] = req
 
-            
+            for tries in range(0, MAX_RETRY):
+                slot = get_request_slot(req.id)
 
-            slot = get_request_slot(req.id)
+                # lock the request allocator data structure using mutex lock
+                with request_allocator_lock:
+                    request_allocator[slot].add(req) # put the request object in the slot
+                # release the mutex lock
+                print("Request " + str(req.id) + " is assigned to slot " + str(slot))
 
-            # lock the request allocator data structure using mutex lock
-            with request_allocator_lock:
-                request_allocator[slot].add(req) # put the request object in the slot
-            # release the mutex lock
-            print("Request " + str(req.id) + " is assigned to slot " + str(slot))
+                # wait for the server assignment event
+                server_assignment_event.wait()
+                # make get request to the assigned server
+                server = assigner_map[req.id]
+                print("Request " + str(req.id) + " is assigned to server " + str(server.id))
+                try:
+                    response = requests.get(f'http://{server.ip}:{server.port}/home')
+                    # Forward the response as is
+                    self.send_response(response.status_code)
+                    for key, value in response.headers.items():
+                        self.send_header(key, value)
+                    self.end_headers()
+                    self.wfile.write(response.content)
 
-            # wait for the server assignment event
-            server_assignment_event.wait()
-            # make get request to the assigned server
-            server = assigner_map[req.id]
-            print("Request " + str(req.id) + " is assigned to server " + str(server.id))
-            try:
-                response = requests.get(f'http://{server.ip}:{server.port}/home')
-                # Forward the response as is
-                self.send_response(response.status_code)
-                for key, value in response.headers.items():
-                    self.send_header(key, value)
-                self.end_headers()
-                self.wfile.write(response.content)
+                    # Check if the server returned a successful response
+                    if response.status_code != 200:
+                        print(f"Request failed with status code: {response.status_code}")
 
-                # Check if the server returned a successful response
-                if response.status_code != 200:
-                    print(f"Request failed with status code: {response.status_code}")
-
-            except requests.exceptions.RequestException as e:
-                # Handle exceptions (e.g., connection error, timeout)
-                print(f"Request failed with exception: {e}")
-            except Exception as e:
-                # Handle other exceptions
-                print(f"An unexpected error occurred: {e}")
+                except requests.exceptions.RequestException as e:
+                    # Handle exceptions (e.g., connection error, timeout)
+                    print(f"Request failed with exception: {e}")
+                except Exception as e:
+                    # Handle other exceptions
+                    print(f"An unexpected error occurred: {e}")
 
         elif self.path == '/rep':
             pass
