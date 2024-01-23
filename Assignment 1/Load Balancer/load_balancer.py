@@ -29,20 +29,19 @@ class client_request:
 
 
 class ServerManager:
-    def __init__(self):
-        self.available_ids = set()
-        self.next_id = 1
+    available_ids = set()
+    next_id = 1
 
     def generate_server_id(self):
-        if self.available_ids:
-            server_id = self.available_ids.pop()
+        if ServerManager.available_ids:
+            server_id = ServerManager.available_ids.pop()
         else:
-            server_id = self.next_id
-            self.next_id += 1
+            server_id = ServerManager.next_id
+            ServerManager.next_id += 1
         return server_id
 
     def delete_server_id(self, server_id):
-        self.available_ids.add(server_id)
+        ServerManager.available_ids.add(server_id)
 
 
 total_live_servers = MIN_SERVERS  # total number of live servers
@@ -63,12 +62,13 @@ request_allocator_lock = threading.Lock()
 
 
 assigner_map = {}  # key: request_id, value: server object
+assigner_map_lock = threading.Lock()
 server_assignment_event = threading.Event()
 
 current_unassigned_request = 0
 current_unassigned_request_lock = threading.Lock()
 
-TIME_LIMIT_FOR_SERVER_ALLOCATION = 0.01
+TIME_LIMIT_FOR_SERVER_ALLOCATION = 0.1
 MINMIMUM_REQUEST_ALLOCATION = 1000
 min_req_allocation_event = threading.Event()
 
@@ -90,7 +90,7 @@ def get_request_slot(request_id):
 def get_server_slot(server_id, virtual_server_id):
     val = server_id*server_id + virtual_server_id * \
         virtual_server_id + 2*virtual_server_id + 25
-    return val % total_slots
+    return (val*37) % total_slots
 
 
 def worker_function(id):
@@ -113,6 +113,7 @@ def remove_server(container_name):
 
 
 def liveness_checker():
+    global total_live_servers
     while True:
         current_live_servers = total_live_servers
         inactive_server_ids = []
@@ -153,7 +154,7 @@ def liveness_checker():
             server_id = ServerManager().generate_server_id()
 
             # TODO: handle exceptiosn if time permits
-            spawn_server(server_id)
+            # spawn_server(server_id)
             server_ip = '127.0.0.1'
             server_port = 5000 + server_id
             server_map[server_id] = Server(
@@ -188,13 +189,17 @@ def liveness_checker():
 
 
 def assigner():
+    global current_unassigned_request
+
     while True:
         flag = False
         with current_unassigned_request_lock:
             if current_unassigned_request > 0:
                 flag = True
         if flag:
+            print("Assigner thread is running")
             # wait for the request allocator data structure to be updated
+            min_req_allocation_event.clear()
             min_req_allocation_event.wait(TIME_LIMIT_FOR_SERVER_ALLOCATION)
             # lock the request allocator data structure using mutex lock
             with request_allocator_lock:
@@ -215,8 +220,11 @@ def assigner():
                                 # assign the requests in req_list to the server in the current slot
                                 server = request_allocator[curr_slot][0]
                                 for req in req_list:
-                                    assigner_map[req.id] = server
-                                    server.request_queue.append(req)
+                                    with assigner_map_lock:
+                                        assigner_map[req.id] = server
+                                    print("Request " + str(req.id) +
+                                          " is assigned to server " + str(server.id))
+                                    # server.request_queue.append(req)
                                 req_list = []
                                 for i in range(1, len(request_allocator[curr_slot])):
                                     req_list.append(
@@ -227,8 +235,12 @@ def assigner():
                     if curr_slot == start_slot:
                         break
                 for req in req_list:
-                    assigner_map[req.id] = request_allocator[start_slot][0]
+                    with assigner_map_lock:
+                        assigner_map[req.id] = request_allocator[start_slot][0]
+                with current_unassigned_request_lock:
+                    current_unassigned_request=0
                 server_assignment_event.set()
+                server_assignment_event.clear()
 
                 # remove the requests from the request allocator data structure(except servers)
                 for slot in range(0, total_slots):
@@ -242,12 +254,16 @@ def assigner():
 
 class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        global current_unassigned_request
+        global total_live_servers
+
         if self.path == '/home':
             client_ip, client_port = self.client_address
             req = client_request(client_ip, client_port, get_request_id())
             request_map[req.id] = req
 
             for __ in range(0, MAX_RETRY):
+                print("Request " + str(req.id) + " is received")
                 slot = get_request_slot(req.id)
 
                 # lock the request allocator data structure using mutex lock
@@ -261,16 +277,24 @@ class RequestHandler(BaseHTTPRequestHandler):
                     current_unassigned_request += 1
                     if current_unassigned_request >= MINMIMUM_REQUEST_ALLOCATION:
                         min_req_allocation_event.set()
+                        min_req_allocation_event.clear()
                 # release the mutex lock
                 print("Request " + str(req.id) +
                       " is assigned to slot " + str(slot))
 
                 # wait for the server assignment event
+                server_assignment_event.clear()
                 server_assignment_event.wait()
                 # make get request to the assigned server
-                server = assigner_map[req.id]
-                with current_unassigned_request_lock:
-                    current_unassigned_request -= 1
+                # print contents of assigner_map
+                
+
+                # print(assigner_map)
+                server  =None
+                with assigner_map_lock:
+                    server = assigner_map[req.id]
+                # with current_unassigned_request_lock:
+                #     current_unassigned_request -= 1
                 print("Request " + str(req.id) +
                       " is assigned to server " + str(server.id))
                 try:
@@ -282,15 +306,22 @@ class RequestHandler(BaseHTTPRequestHandler):
                         self.send_header(key, value)
                     self.end_headers()
                     self.wfile.write(response.content)
+                    with assigner_map_lock:
+                        del assigner_map[req.id]
+                    break
 
                 except requests.exceptions.RequestException as e:
                     # Handle exceptions (e.g., connection error, timeout)
                     # time.sleep(2)
                     print(f"Request failed with exception: {e}")
+                    with assigner_map_lock:
+                        del assigner_map[req.id]
                 except Exception as e:
                     # Handle other exceptions
                     # time.sleep(2)
                     print(f"An unexpected error occurred: {e}")
+                    with assigner_map_lock:
+                        del assigner_map[req.id]
 
         elif self.path == '/rep':
             response_data = {
@@ -324,15 +355,16 @@ class RequestHandler(BaseHTTPRequestHandler):
 
 
 # Set up the server with the specified port (5000)
-port = 5000
+port = 5069
 
 
 def run():
     # initialize N servers
+    global total_live_servers
     for _ in range(1, total_live_servers+1):
         server_id = ServerManager().generate_server_id()
 
-        spawn_server(server_id)
+        # spawn_server(server_id)
         server_ip = '127.0.0.1'
         server_port = 5000 + server_id
         server_map[server_id] = Server(server_id, server_ip, server_port)
@@ -346,6 +378,8 @@ def run():
             while request_allocator[slot] != None:
                 slot = (slot+1) % total_slots
             request_allocator[slot] = [server_map[_id]]
+            if _id not in server_slot_map:
+                server_slot_map[_id] = []
             server_slot_map[_id].append(slot)  # server slot
             print("Server " + str(_id) + " is assigned to slot " + str(slot))
 
