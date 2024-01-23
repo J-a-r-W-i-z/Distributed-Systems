@@ -3,7 +3,7 @@
 version: "3"
 services:
   test_controller:
-    build: . # Path to the Dockerfile
+    build: ./"Load Balancer" # Path to the Dockerfile
     image: controller
     container_name: lb
     ports:
