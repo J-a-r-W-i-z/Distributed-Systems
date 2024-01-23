@@ -151,39 +151,42 @@ def liveness_checker():
             continue
 
         for _ in range(1, MIN_SERVERS-total_live_servers+1):
-            server_id = ServerManager().generate_server_id()
-
-            # TODO: handle exceptiosn if time permits
-            # spawn_server(server_id)
-            server_ip = '127.0.0.1'
-            server_port = 5000 + server_id
-            server_map[server_id] = Server(
-                server_id, server_ip, server_port)
-
-            for j in range(1, num_virtual_servers+1):
-                slot = get_server_slot(server_id, j)
-
-                with request_allocator_lock:
-                    start_pos = slot
-                    while True:
-                        if request_allocator[slot] == None:
-                            request_allocator[slot] = [
-                                server_map[server_id]]
-                            server_slot_map[server_id].append(slot)
-                            break
-
-                        if type(request_allocator[slot][0]) != Server:
-                            request_allocator[slot].insert(
-                                0, server_map[server_id])
-                            server_slot_map[server_id].append(slot)
-                            break
-
-                        slot = (slot+1) % total_slots
-                        if slot == start_pos:
-                            break
+            create_server_intances()
 
         total_live_servers = MIN_SERVERS
         time.sleep(3)
+
+def create_server_intances():
+    server_id = ServerManager().generate_server_id()
+
+            # TODO: handle exceptiosn if time permits
+            # spawn_server(server_id)
+    server_ip = '127.0.0.1'
+    server_port = 5000 + server_id
+    server_map[server_id] = Server(
+                server_id, server_ip, server_port)
+
+    for j in range(1, num_virtual_servers+1):
+        slot = get_server_slot(server_id, j)
+
+        with request_allocator_lock:
+            start_pos = slot
+            while True:
+                if request_allocator[slot] == None:
+                    request_allocator[slot] = [
+                                server_map[server_id]]
+                    server_slot_map[server_id].append(slot)
+                    break
+
+                if type(request_allocator[slot][0]) != Server:
+                    request_allocator[slot].insert(
+                                0, server_map[server_id])
+                    server_slot_map[server_id].append(slot)
+                    break
+
+                slot = (slot+1) % total_slots
+                if slot == start_pos:
+                    break
 
 # worker function for assigner thread
 
@@ -306,7 +309,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                     else:
                         print("Request " + str(req.id)+" Not found")
                         continue
-                    
+
                 # print("Request " + str(req.id) +
                 #       " is assigned to server " + str(server.id))
                 try:
