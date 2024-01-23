@@ -135,7 +135,7 @@ def liveness_checker():
 
         for server_id in inactive_server_ids:
             remove_server(f'web-server_{server_id}')
-            del server_map[server_id] # point to be noted your honor
+            del server_map[server_id]  # point to be noted your honor
 
             for slot in server_slot_map[server_id]:
                 with request_allocator_lock:
@@ -143,41 +143,45 @@ def liveness_checker():
             del server_slot_map[server_id]
 
         total_live_servers = current_live_servers
-        
-        # if number of live servers is less than 3, spawn new servers
-        if total_live_servers < MIN_SERVERS:
-            for _ in range(1, MIN_SERVERS-total_live_servers+1):
-                server_id = ServerManager().generate_server_id()
 
-                # TODO: handle exceptiosn if time permits
-                spawn_server(server_id)
-                server_ip = '127.0.0.1'
-                server_port = 5000 + server_id
-                server_map[server_id] = Server(
-                    server_id, server_ip, server_port)
+        # if the number of live servers are greater than 3, continue
+        if total_live_servers >= MIN_SERVERS:
+            time.sleep(3)
+            continue
 
-                for j in range(1, num_virtual_servers+1):
-                    slot = get_server_slot(server_id, j)
+        for _ in range(1, MIN_SERVERS-total_live_servers+1):
+            server_id = ServerManager().generate_server_id()
 
-                    with request_allocator_lock:
-                        start_pos = slot
-                        while True:
-                            if request_allocator[slot] == None:
-                                request_allocator[slot] = [
-                                    server_map[server_id]]
-                                server_slot_map[server_id].append(slot)
-                                break
+            # TODO: handle exceptiosn if time permits
+            spawn_server(server_id)
+            server_ip = '127.0.0.1'
+            server_port = 5000 + server_id
+            server_map[server_id] = Server(
+                server_id, server_ip, server_port)
 
-                            if type(request_allocator[slot][0]) != Server:
-                                request_allocator[slot].insert(
-                                    0, server_map[server_id])
-                                server_slot_map[server_id].append(slot)
-                                break
+            for j in range(1, num_virtual_servers+1):
+                slot = get_server_slot(server_id, j)
 
-                            slot = (slot+1) % total_slots
-                            if slot == start_pos:
-                                break
+                with request_allocator_lock:
+                    start_pos = slot
+                    while True:
+                        if request_allocator[slot] == None:
+                            request_allocator[slot] = [
+                                server_map[server_id]]
+                            server_slot_map[server_id].append(slot)
+                            break
 
+                        if type(request_allocator[slot][0]) != Server:
+                            request_allocator[slot].insert(
+                                0, server_map[server_id])
+                            server_slot_map[server_id].append(slot)
+                            break
+
+                        slot = (slot+1) % total_slots
+                        if slot == start_pos:
+                            break
+
+        total_live_servers = MIN_SERVERS
         time.sleep(3)
 
 # worker function for assigner thread
@@ -214,8 +218,9 @@ def assigner():
                                     assigner_map[req.id] = server
                                     server.request_queue.append(req)
                                 req_list = []
-                                for i in range(1,len(request_allocator[curr_slot])):
-                                    req_list.append(request_allocator[curr_slot][i])
+                                for i in range(1, len(request_allocator[curr_slot])):
+                                    req_list.append(
+                                        request_allocator[curr_slot][i])
                         else:
                             req_list.extend(request_allocator[curr_slot])
                     curr_slot = (curr_slot+1) % total_slots
@@ -231,11 +236,9 @@ def assigner():
                         if type(request_allocator[slot][0]) != Server:
                             request_allocator[slot] = None
                         else:
-                            request_allocator[slot] = [request_allocator[slot][0]]
+                            request_allocator[slot] = [
+                                request_allocator[slot][0]]
 
-                   
-                            
-                
 
 class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -282,7 +285,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
                 except requests.exceptions.RequestException as e:
                     # Handle exceptions (e.g., connection error, timeout)
-                    # time.sleep(2) 
+                    # time.sleep(2)
                     print(f"Request failed with exception: {e}")
                 except Exception as e:
                     # Handle other exceptions
