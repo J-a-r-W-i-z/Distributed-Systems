@@ -8,7 +8,6 @@ import random
 import time
 import requests
 
-MAX_TIME = 5
 
 class Server:
     def __init__(self, server_id, server_ip, server_port):
@@ -26,10 +25,12 @@ class client_request:
         self.is_served = False
 
 
-total_live_servers = 3  # total number of live servers
+MAX_TIME = 2
+MIN_SERVERS = 3
+total_live_servers = MIN_SERVERS  # total number of live servers
 total_slots = 512  # total number of slots in the consistent hashing ring
 num_virtual_servers = 9  # number of virtual servers per physical server
-MAX_RETRY = 3
+MAX_RETRY = 5
 request_map = {}  # key: request_id, value: client_request
 server_map = {}  # key: server_id, value: Server object
 
@@ -49,7 +50,7 @@ server_assignment_event = threading.Event()
 current_unassigned_request = 0
 current_unassigned_request_lock = threading.Lock()
 
-TIME_LIMIT_FOR_SERVER_ALLOCATION = 1
+TIME_LIMIT_FOR_SERVER_ALLOCATION = 0.01
 MINMIMUM_REQUEST_ALLOCATION = 1000
 min_req_allocation_event = threading.Event()
 
@@ -93,7 +94,6 @@ def remove_server(container_name):
 # liveness checker thread worker function
 def liveness_checker():
     while True:
-        time.sleep(5)
         current_live_servers = total_live_servers
         inactive_server_ids = []
         for server_id, server in server_map.items():
@@ -115,12 +115,18 @@ def liveness_checker():
 
         for server_id in inactive_server_ids:
             remove_server(f'web-server_{server_id}')
-            del server_map[server_id]
+            del server_map[server_id] # point to be noted your honor
+
             for slot in server_slot_map[server_id]:
-                request_allocator[slot].remove(0)
+                with request_allocator_lock:
+                    request_allocator[slot].remove(0)
             del server_slot_map[server_id]
 
         total_live_servers = current_live_servers
+        # if number of live servers is less than 3, spawn new servers
+        
+                
+        time.sleep(3)
 
 # worker function for assigner thread
 def assigner():
@@ -141,7 +147,7 @@ def assigner():
                         if type(request_allocator[slot][0]) == Server:
                             start_slot = slot
                             break
-                # traverse from start slot to assign requests to the nnext server(clockwise manner)
+                # traverse from start slot to assign requests to the next server(clockwise manner)
                 curr_slot = start_slot
                 req_list = []
                 while True:
@@ -153,6 +159,7 @@ def assigner():
                                 for req in req_list:
                                     assigner_map[req.id] = server
                                     server.request_queue.append(req)
+                                req_list = []
                                 for i in range(1,len(request_allocator[curr_slot])):
                                     req_list.append(request_allocator[curr_slot][i])
                         else:
@@ -160,6 +167,8 @@ def assigner():
                     curr_slot = (curr_slot+1) % total_slots
                     if curr_slot == start_slot:
                         break
+                for req in req_list:
+                    assigner_map[req.id] = request_allocator[start_slot][0]
                 server_assignment_event.set()
 
                 # remove the requests from the request allocator data structure(except servers)
@@ -169,7 +178,8 @@ def assigner():
                             request_allocator[slot] = None
                         else:
                             request_allocator[slot] = [request_allocator[slot][0]]
-                    
+
+                   
                             
                 
 
@@ -189,6 +199,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                         request_allocator[slot] = [req]
                     else:
                         request_allocator[slot].append(req) # put the request object in the slot
+
                 with current_unassigned_request_lock:
                     current_unassigned_request+=1
                     if current_unassigned_request >= MINMIMUM_REQUEST_ALLOCATION:
@@ -201,8 +212,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                 # make get request to the assigned server
                 server = assigner_map[req.id]
                 with current_unassigned_request_lock:
-                        current_unassigned_request-=1
+                    current_unassigned_request-=1
+                        
                 print("Request " + str(req.id) + " is assigned to server " + str(server.id))
+
                 try:
                     response = requests.get(f'http://{server.ip}:{server.port}/home')
                     # Forward the response as is
@@ -216,11 +229,11 @@ class RequestHandler(BaseHTTPRequestHandler):
 
                 except requests.exceptions.RequestException as e:
                     # Handle exceptions (e.g., connection error, timeout)
-                    time.sleep(5)
+                    # time.sleep(2) 
                     print(f"Request failed with exception: {e}")
                 except Exception as e:
                     # Handle other exceptions
-                    time.sleep(5)
+                    # time.sleep(2)
                     print(f"An unexpected error occurred: {e}")
 
         elif self.path == '/rep':
@@ -245,9 +258,10 @@ port = 5000
 def run():
     # initialize N servers
     for i in range(1, total_live_servers+1):
-        spawn_server(i)
+        # spawn_server(i)
         server_id = i
         server_ip = '127.0.0.1'
+        # add host name
         server_port = 5000 + i
         server_map[server_id] = Server(server_id, server_ip, server_port)
         print("Server " + str(server_id) +
