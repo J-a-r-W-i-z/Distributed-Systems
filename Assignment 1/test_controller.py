@@ -5,6 +5,7 @@ import subprocess
 import os
 import json
 import random
+import requests
 import multiprocessing
 
 
@@ -103,7 +104,7 @@ def run():
 
 def worker_function(id):
     # Command to run
-    command = f'sudo docker run --name web-server_{id} --network assignment1_myNetwork --network-alias web-server_{id} -e SERVER_ID={id} -p 500{id}:5000 web-server'
+    command = f'sudo docker run --name web-server_{id} --network assignment1_myNetwork --network-alias web-server_{id} --hostname server_{id} -e SERVER_ID={id} -p {5000+id}:5000 web-server'
     res = os.popen(command).read()
     exit()
 
@@ -118,12 +119,19 @@ def remove_server(container_name):
 if __name__ == '__main__':
     print("Controller Called!!")
 
-    # Initialize N servers
+    #Initialize N servers
     for i in range(N):
         print(f"Spawing server {i+1}...")
         spawn_server(i+1)
 
-    sleep(20)
+    for i in range(N):
+        print(f"Sending Get request to Server {i+1}...")
+        url=f"http://server_{i+1}:5000/home"
+        response = requests.get(url)
+        print(response.text)
+
+
+    sleep(10)
 
     for i in range(N):
         print(f"Removing server {i+1}")
