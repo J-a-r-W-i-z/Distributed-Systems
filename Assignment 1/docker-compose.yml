@@ -3,6 +3,8 @@
 version: "3"
 services:
   test_controller:
+    expose:
+      - 5000
     build: ./"Load Balancer" # Path to the Dockerfile
     image: controller
     container_name: lb

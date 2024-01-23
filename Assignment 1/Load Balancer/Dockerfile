@@ -35,4 +35,7 @@ USER $USER
 
 ENV HOME=/home/$USER
 
-CMD ["python", "load_balancer.py"]
+# EXPOSE 5500:5500
+EXPOSE 5000
+
+CMD ["python", "-u", "load_balancer.py"]

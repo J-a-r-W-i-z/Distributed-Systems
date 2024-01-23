@@ -283,7 +283,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             request_map[req.id] = req
 
             for __ in range(0, MAX_RETRY):
-                # print("Request " + str(req.id) + " is received")
+                print("Request " + str(req.id) + " is received")
                 slot = get_request_slot(req.id)
 
                 # lock the request allocator data structure using mutex lock
@@ -301,8 +301,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 # release the mutex lock
                 server_assignment_event.clear()
                 server_assignment_event.wait()
-                # print("Request " + str(req.id) +
-                #       " is assigned to slot " + str(slot))
+                print("Request " + str(req.id) + " is assigned to slot " + str(slot))
 
                 # wait for the server assignment event
                 server = None
@@ -313,8 +312,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                         print("Request " + str(req.id)+" Not found")
                         continue
                     
-                # print("Request " + str(req.id) +
-                #       " is assigned to server " + str(server.id))
+                print("Request " + str(req.id) + " is assigned to server " + str(server.id))
                 try:
                     response = requests.get(
                         f'http://{server.hostname}:5000/home')
@@ -373,7 +371,7 @@ class RequestHandler(BaseHTTPRequestHandler):
 
 
 # Set up the server with the specified port (5000)
-port = 5069
+PORT = 5000
 
 
 def run():
@@ -412,8 +410,8 @@ def run():
     # liveness_checker_thread.start()  # start the thread
 
     # run the load balancer
-
-    server = ThreadingHTTPServer(("", port), RequestHandler)
+    print("Runninggggg")
+    server = ThreadingHTTPServer(("", PORT), RequestHandler)
     server.serve_forever()
 
 
@@ -432,7 +430,6 @@ def spawn_server(id, name, hostname, port):
     subprocess.Popen(command, shell=True)
     # child_process = multiprocessing.Process(target=worker_function, args=(id,name,hostname,port))
     # child_process.start()
-    return
 
 def remove_server(container_name):
     os.system(f'sudo docker stop {container_name} && sudo docker rm {container_name}')
