@@ -363,8 +363,7 @@ def run():
     global total_live_servers
     for _ in range(1, total_live_servers+1):
         server_id = ServerManager().generate_server_id()
-
-        # spawn_server(server_id)
+        spawn_server(server_id)
         server_ip = '127.0.0.1'
         server_port = 5000 + server_id
         server_map[server_id] = Server(server_id, server_ip, server_port)
@@ -395,6 +394,22 @@ def run():
 
     server = ThreadingHTTPServer(("", port), RequestHandler)
     server.serve_forever()
+
+
+############################### Docker Functions ##################################
+
+def worker_function(id):
+    # Command to run
+    command = f'sudo docker run --name web-server_{id} --network assignment1_myNetwork --network-alias web-server_{id} --hostname server_{id} -e SERVER_ID={id} -p {5000+id}:5000 web-server'
+    res = os.popen(command).read()
+    exit()
+
+def spawn_server(id):
+    child_process = multiprocessing.Process(target=worker_function, args=(id,))
+    child_process.start()
+
+def remove_server(container_name):
+    os.system(f'sudo docker stop {container_name} && sudo docker rm {container_name}')
 
 
 if __name__ == '__main__':

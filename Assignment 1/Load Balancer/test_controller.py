@@ -133,7 +133,4 @@ if __name__ == '__main__':
 
     sleep(1000)
 
-    # for i in range(N):
-    #     print(f"Removing server {i+1}")
-    #     remove_server(f"web-server_{i+1}")
 
