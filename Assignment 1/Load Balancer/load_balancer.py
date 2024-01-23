@@ -1,6 +1,7 @@
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 import multiprocessing
 from threading import Thread
+import subprocess
 import threading
 import os
 import json
@@ -8,15 +9,20 @@ import random
 import time
 import requests
 
+# Set the server ID from the environment variable
+N = os.environ.get('N', 'Unknown')
+print("N = " + N)
+
 MAX_TIME = 5
-MIN_SERVERS = 3
+MIN_SERVERS = int(N)
 
 
 class Server:
-    def __init__(self, server_id, server_ip, server_port):
+    def __init__(self, server_id, name, hostname, port):
         self.id = server_id
-        self.ip = server_ip
-        self.port = server_port
+        self.name = name
+        self.hostname = hostname
+        self.port = port
         self.request_queue = []  # list of request assigned for this server
 
 
@@ -68,7 +74,7 @@ server_assignment_event = threading.Event()
 current_unassigned_request = 0
 current_unassigned_request_lock = threading.Lock()
 
-TIME_LIMIT_FOR_SERVER_ALLOCATION = 1
+TIME_LIMIT_FOR_SERVER_ALLOCATION = 0.01
 MINMIMUM_REQUEST_ALLOCATION = 1000
 min_req_allocation_event = threading.Event()
 
@@ -311,7 +317,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 #       " is assigned to server " + str(server.id))
                 try:
                     response = requests.get(
-                        f'http://{server.ip}:{server.port}/home')
+                        f'http://{server.hostname}:5000/home')
                     # Forward the response as is
                     self.send_response(response.status_code)
                     for key, value in response.headers.items():
@@ -375,12 +381,15 @@ def run():
     global total_live_servers
     for _ in range(1, total_live_servers+1):
         server_id = ServerManager().generate_server_id()
-        spawn_server(server_id)
-        server_ip = '127.0.0.1'
-        server_port = 5000 + server_id
-        server_map[server_id] = Server(server_id, server_ip, server_port)
+        hostname = "server_"+str(server_id)
+        port = 5000 + server_id
+        name = "web_server_"+str(server_id)
+        spawn_server(server_id, name, hostname, port)
+        server_map[server_id] = Server(server_id, name, hostname, port)
         print("Server " + str(server_id) +
-              " is running on port " + str(server_port))
+              " is running on port " + str(port))
+
+    print("All servers started")
 
     for _id in server_map.keys():
         for j in range(1, num_virtual_servers+1):
@@ -410,15 +419,20 @@ def run():
 
 ############################### Docker Functions ##################################
 
-def worker_function(id):
+def worker_function(id, name, hostname,port):
     # Command to run
-    command = f'sudo docker run --name web-server_{id} --network assignment1_myNetwork --network-alias web-server_{id} --hostname server_{id} -e SERVER_ID={id} -p {5000+id}:5000 web-server'
+    command = f'sudo docker run --name {name} --network assignment1_myNetwork --network-alias web-server_{id}  --hostname {hostname} -e SERVER_ID={id} -p {port}:5000 web-server'
     res = os.popen(command).read()
     exit()
 
-def spawn_server(id):
-    child_process = multiprocessing.Process(target=worker_function, args=(id,))
-    child_process.start()
+def spawn_server(id, name, hostname, port):
+    print("Spawningggggggg")
+    command = f'sudo docker run --name {name} --network assignment1_myNetwork --network-alias web-server_{id}  --hostname {hostname} -e SERVER_ID={id} -p {port}:5000 web-server'
+    # res = os.popen(command).read()
+    subprocess.Popen(command, shell=True)
+    # child_process = multiprocessing.Process(target=worker_function, args=(id,name,hostname,port))
+    # child_process.start()
+    return
 
 def remove_server(container_name):
     os.system(f'sudo docker stop {container_name} && sudo docker rm {container_name}')

@@ -3,7 +3,7 @@ FROM python:3.8-slim
 
 WORKDIR /app
 
-COPY test_controller.py .
+COPY load_balancer.py .
 
 RUN apt-get update && apt-get install -y sudo
 
@@ -35,4 +35,4 @@ USER $USER
 
 ENV HOME=/home/$USER
 
-CMD ["python", "test_controller.py"]
+CMD ["python", "load_balancer.py"]
