@@ -68,7 +68,7 @@ server_assignment_event = threading.Event()
 current_unassigned_request = 0
 current_unassigned_request_lock = threading.Lock()
 
-TIME_LIMIT_FOR_SERVER_ALLOCATION = 0.1
+TIME_LIMIT_FOR_SERVER_ALLOCATION = 1
 MINMIMUM_REQUEST_ALLOCATION = 1000
 min_req_allocation_event = threading.Event()
 
@@ -197,13 +197,26 @@ def assigner():
             if current_unassigned_request > 0:
                 flag = True
         if flag:
-            print("Assigner thread is running")
+            # print("Assigner thread is running")
             # wait for the request allocator data structure to be updated
+
             min_req_allocation_event.clear()
             min_req_allocation_event.wait(TIME_LIMIT_FOR_SERVER_ALLOCATION)
             # lock the request allocator data structure using mutex lock
             with request_allocator_lock:
                 # find a slot which contains a server
+                # print the request allocator data structure each server and each request individually
+                # print("Request Allocator Data Structure")
+                # for slot in range(0, total_slots):
+                #     if request_allocator[slot] != None:
+                #         print("\nSlot " + str(slot) + " : ",end=" ")
+                #         for item in request_allocator[slot]:
+                #             if type(item) == Server:
+                #                 print("Server " + str(item.id),end=" ")
+                #             else:
+                #                 print("Request " + str(item.id),end=" ")
+                # print("\nEnd of Request Allocator Data Structure")
+
                 start_slot = 0
                 for slot in range(0, total_slots):
                     if request_allocator[slot] != None:
@@ -226,9 +239,9 @@ def assigner():
                                           " is assigned to server " + str(server.id))
                                     # server.request_queue.append(req)
                                 req_list = []
-                                for i in range(1, len(request_allocator[curr_slot])):
-                                    req_list.append(
-                                        request_allocator[curr_slot][i])
+                            for i in range(1, len(request_allocator[curr_slot])):
+                                req_list.append(
+                                    request_allocator[curr_slot][i])
                         else:
                             req_list.extend(request_allocator[curr_slot])
                     curr_slot = (curr_slot+1) % total_slots
@@ -258,12 +271,13 @@ class RequestHandler(BaseHTTPRequestHandler):
         global total_live_servers
 
         if self.path == '/home':
+            # time.sleep(30)
             client_ip, client_port = self.client_address
             req = client_request(client_ip, client_port, get_request_id())
             request_map[req.id] = req
 
             for __ in range(0, MAX_RETRY):
-                print("Request " + str(req.id) + " is received")
+                # print("Request " + str(req.id) + " is received")
                 slot = get_request_slot(req.id)
 
                 # lock the request allocator data structure using mutex lock
@@ -279,24 +293,22 @@ class RequestHandler(BaseHTTPRequestHandler):
                         min_req_allocation_event.set()
                         min_req_allocation_event.clear()
                 # release the mutex lock
-                print("Request " + str(req.id) +
-                      " is assigned to slot " + str(slot))
-
-                # wait for the server assignment event
                 server_assignment_event.clear()
                 server_assignment_event.wait()
-                # make get request to the assigned server
-                # print contents of assigner_map
-                
+                # print("Request " + str(req.id) +
+                #       " is assigned to slot " + str(slot))
 
-                # print(assigner_map)
-                server  =None
+                # wait for the server assignment event
+                server = None
                 with assigner_map_lock:
-                    server = assigner_map[req.id]
-                # with current_unassigned_request_lock:
-                #     current_unassigned_request -= 1
-                print("Request " + str(req.id) +
-                      " is assigned to server " + str(server.id))
+                    if req.id in assigner_map:
+                        server = assigner_map[req.id]
+                    else:
+                        print("Request " + str(req.id)+" Not found")
+                        continue
+                    
+                # print("Request " + str(req.id) +
+                #       " is assigned to server " + str(server.id))
                 try:
                     response = requests.get(
                         f'http://{server.ip}:{server.port}/home')
@@ -380,15 +392,15 @@ def run():
             if _id not in server_slot_map:
                 server_slot_map[_id] = []
             server_slot_map[_id].append(slot)  # server slot
-            print("Server " + str(_id) + " is assigned to slot " + str(slot))
+            # print("Server " + str(_id) + " is assigned to slot " + str(slot))
 
     # create assigner thread
     assigner_thread = Thread(target=assigner)  # create thread
     assigner_thread.start()  # start the thread
 
     # create liveness checker thread
-    liveness_checker_thread = Thread(target=liveness_checker)  # create thread
-    liveness_checker_thread.start()  # start the thread
+    # liveness_checker_thread = Thread(target=liveness_checker)  # create thread
+    # liveness_checker_thread.start()  # start the thread
 
     # run the load balancer
 
