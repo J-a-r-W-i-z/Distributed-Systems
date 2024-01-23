@@ -5,11 +5,10 @@ import threading
 import os
 import json
 import random
+import time
 import requests
 
-
 MAX_TIME = 5
-
 
 class Server:
     def __init__(self, server_id, server_ip, server_port):
@@ -28,7 +27,6 @@ class client_request:
 
 
 total_live_servers = 3  # total number of live servers
-current_unserved_request = 0
 total_slots = 512  # total number of slots in the consistent hashing ring
 num_virtual_servers = 9  # number of virtual servers per physical server
 MAX_RETRY = 3
@@ -47,6 +45,14 @@ request_allocator_lock = threading.Lock()
 
 assigner_map = {}  # key: request_id, value: server object
 server_assignment_event = threading.Event()
+
+current_unassigned_request = 0
+current_unassigned_request_lock = threading.Lock()
+
+TIME_LIMIT_FOR_SERVER_ALLOCATION = 1
+MINMIMUM_REQUEST_ALLOCATION = 1000
+min_req_allocation_event = threading.Event()
+
 
 
 def get_request_id():  # generate unique request id
@@ -80,11 +86,92 @@ def spawn_server(id):
     child_process = multiprocessing.Process(target=worker_function, args=(id,))
     child_process.start()
 
-
 def remove_server(container_name):
     os.system(
         f'sudo docker stop {container_name} && sudo docker rm {container_name}')
 
+# liveness checker thread worker function
+def liveness_checker():
+    while True:
+        time.sleep(5)
+        current_live_servers = total_live_servers
+        inactive_server_ids = []
+        for server_id, server in server_map.items():
+            try:
+                response = requests.get(
+                    f'http://{server.ip}:{server.port}/heartbeat', timeout=MAX_TIME)
+
+                if response.status_code != 200:
+                    inactive_server_ids.append(server_id)
+                    current_live_servers -= 1
+            except requests.exceptions.RequestException as e:
+                print(f"Request failed with exception: {e}")
+                inactive_server_ids.append(server_id)
+                current_live_servers -= 1
+            except Exception as e:
+                print(f"An unexpected error occurred: {e}")
+                inactive_server_ids.append(server_id)
+                current_live_servers -= 1
+
+        for server_id in inactive_server_ids:
+            remove_server(f'web-server_{server_id}')
+            del server_map[server_id]
+            for slot in server_slot_map[server_id]:
+                request_allocator[slot].remove(0)
+            del server_slot_map[server_id]
+
+        total_live_servers = current_live_servers
+
+# worker function for assigner thread
+def assigner():
+    while True:
+        flag = False
+        with current_unassigned_request_lock:
+            if current_unassigned_request > 0:
+                flag = True
+        if flag:
+            # wait for the request allocator data structure to be updated
+            min_req_allocation_event.wait(TIME_LIMIT_FOR_SERVER_ALLOCATION)
+            # lock the request allocator data structure using mutex lock
+            with request_allocator_lock:
+                # find a slot which contains a server
+                start_slot = 0
+                for slot in range(0, total_slots):
+                    if request_allocator[slot] != None:
+                        if type(request_allocator[slot][0]) == Server:
+                            start_slot = slot
+                            break
+                # traverse from start slot to assign requests to the nnext server(clockwise manner)
+                curr_slot = start_slot
+                req_list = []
+                while True:
+                    if request_allocator[curr_slot] != None:
+                        if type(request_allocator[curr_slot][0]) == Server:
+                            if len(req_list) > 0:
+                                # assign the requests in req_list to the server in the current slot
+                                server = request_allocator[curr_slot][0]
+                                for req in req_list:
+                                    assigner_map[req.id] = server
+                                    server.request_queue.append(req)
+                                for i in range(1,len(request_allocator[curr_slot])):
+                                    req_list.append(request_allocator[curr_slot][i])
+                        else:
+                            req_list.extend(request_allocator[curr_slot])
+                    curr_slot = (curr_slot+1) % total_slots
+                    if curr_slot == start_slot:
+                        break
+                server_assignment_event.set()
+
+                # remove the requests from the request allocator data structure(except servers)
+                for slot in range(0, total_slots):
+                    if request_allocator[slot] != None:
+                        if type(request_allocator[slot][0]) != Server:
+                            request_allocator[slot] = None
+                        else:
+                            request_allocator[slot] = [request_allocator[slot][0]]
+                    
+                            
+                
 
 class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -93,12 +180,19 @@ class RequestHandler(BaseHTTPRequestHandler):
             req = client_request(client_ip, client_port, get_request_id())
             request_map[req.id] = req
 
-            for tries in range(0, MAX_RETRY):
+            for __ in range(0, MAX_RETRY):
                 slot = get_request_slot(req.id)
 
                 # lock the request allocator data structure using mutex lock
                 with request_allocator_lock:
-                    request_allocator[slot].add(req) # put the request object in the slot
+                    if request_allocator[slot] == None:
+                        request_allocator[slot] = [req]
+                    else:
+                        request_allocator[slot].append(req) # put the request object in the slot
+                with current_unassigned_request_lock:
+                    current_unassigned_request+=1
+                    if current_unassigned_request >= MINMIMUM_REQUEST_ALLOCATION:
+                        min_req_allocation_event.set()
                 # release the mutex lock
                 print("Request " + str(req.id) + " is assigned to slot " + str(slot))
 
@@ -106,6 +200,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 server_assignment_event.wait()
                 # make get request to the assigned server
                 server = assigner_map[req.id]
+                with current_unassigned_request_lock:
+                        current_unassigned_request-=1
                 print("Request " + str(req.id) + " is assigned to server " + str(server.id))
                 try:
                     response = requests.get(f'http://{server.ip}:{server.port}/home')
@@ -115,16 +211,16 @@ class RequestHandler(BaseHTTPRequestHandler):
                         self.send_header(key, value)
                     self.end_headers()
                     self.wfile.write(response.content)
+                    
 
-                    # Check if the server returned a successful response
-                    if response.status_code != 200:
-                        print(f"Request failed with status code: {response.status_code}")
 
                 except requests.exceptions.RequestException as e:
                     # Handle exceptions (e.g., connection error, timeout)
+                    time.sleep(5)
                     print(f"Request failed with exception: {e}")
                 except Exception as e:
                     # Handle other exceptions
+                    time.sleep(5)
                     print(f"An unexpected error occurred: {e}")
 
         elif self.path == '/rep':
@@ -169,36 +265,14 @@ def run():
             print("Server " + str(i) + " is assigned to slot " + str(slot))
 
     # create assigner thread
+    assigner_thread = Thread(target=assigner) # create thread
+    assigner_thread.start() # start the thread
 
     # create liveness checker thread
-    current_live_servers = total_live_servers
-    inactive_server_ids = []
-    for server_id, server in server_map.items():
-        try:
-            response = requests.get(
-                f'http://{server.ip}:{server.port}/heartbeat', timeout=MAX_TIME)
+    liveness_checker_thread = Thread(target=liveness_checker) # create thread
+    liveness_checker_thread.start() # start the thread
 
-            if response.status_code != 200:
-                inactive_server_ids.append(server_id)
-                current_live_servers -= 1
-        except requests.exceptions.RequestException as e:
-            print(f"Request failed with exception: {e}")
-            inactive_server_ids.append(server_id)
-            current_live_servers -= 1
-        except Exception as e:
-            print(f"An unexpected error occurred: {e}")
-            inactive_server_ids.append(server_id)
-            current_live_servers -= 1
-
-    for server_id in inactive_server_ids:
-        remove_server(f'web-server_{server_id}')
-        del server_map[server_id]
-        for slot in server_slot_map[server_id]:
-            request_allocator[slot].remove(0)
-        del server_slot_map[server_id]
-
-    total_live_servers = current_live_servers
-
+    
     # run the load balancer
 
     server = ThreadingHTTPServer(("", port), RequestHandler)
