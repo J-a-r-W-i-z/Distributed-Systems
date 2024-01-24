@@ -28,21 +28,22 @@ This Docker containerized load balancer is designed to distribute incoming reque
    - If a crash or fault is detected, removes the server information from all data structures.
    - If the number of active servers becomes less than the minimum requirements, spawns new servers.
 
-## Design Details
+4. **Data Structures:**
+  - request_allocator: Used to store Servers(including virtual instances) and Requests.
+  - assigner_map: Maintains the assignments made by the assigner thread.
+  - request_map: Maps request id to the request object.
+  - server_map: Maps server id to the server object.
+  - server_slot_map: Maps server id to the slots of it's virtual instances in the requests allocator.
 
-- **Data Structures:**
-  - Consistent Hashing Data Structure: Used for efficient assignment of requests to servers.
-  - Assigner Map: Maintains the assignments made by the assigner thread.
-
-- **Threads:**
+5. **Threads:**
   - Request Handler Threads: Handle incoming client requests.
   - Assigner Thread: Assigns servers to requests.
   - Liveness Checker Thread: Monitors the health of maintained servers.
 
-- **Endpoints:**
-  - `/add_server`: Add a new server to the load balancer.
-  - `/remove_server`: Remove an existing server from the load balancer.
-  - `/get_server_details`: Get details of existing servers.
+6. **Other Endpoints:**
+  - `/add`: Add a new server to the load balancer.
+  - `/rm`: Remove an existing server from the load balancer.
+  - `/rep`: Get details of existing servers.
 
 ## Building and Running the Docker Container
 
