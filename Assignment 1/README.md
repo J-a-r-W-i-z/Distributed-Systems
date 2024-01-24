@@ -45,6 +45,11 @@ This Docker containerized load balancer is designed to distribute incoming reque
   - `/rm`: Remove an existing server from the load balancer.
   - `/rep`: Get details of existing servers.
 
+7. **Hash Function Used:**
+   - \( i^2 + j^2 + 2j + 25 \)
+   - \( 5^i + 3^j + 2j + 25 \)
+   - \( 37 \cdot (i^2 + j^2 + 2j + 25) \)
+
 ## Building and Running the Docker Container
 
 To build and run the Docker container, follow these steps:
