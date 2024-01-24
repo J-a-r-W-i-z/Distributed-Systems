@@ -18,7 +18,7 @@ services:
     # aliases:
       # - test_lb_container # Usually same as containername
     environment:
-      - N=3 # Environment variables accessed with os.environ['N'].
+      - N=3
 
 networks:
   myNetwork: {}

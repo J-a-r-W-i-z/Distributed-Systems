@@ -1,6 +1,8 @@
 import concurrent.futures
 import requests
 import matplotlib.pyplot as plt
+import sys
+import os
 
 url_to_request = "http://127.0.0.1:5000/home"
 num_threads = 50
@@ -26,8 +28,15 @@ def make_get_request(i):
 
 
 if __name__ == "__main__":
+    # Check if the argument is provided
+    if len(sys.argv) != 2:
+        print("Usage: python script.py <argument>")
+        sys.exit(1)
+
+    # Get the argument
+    argument_value = sys.argv[1]
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-        # Use 'submit' to asynchronously submit tasks to the executor
         futures = [executor.submit(make_get_request, i)
                    for i in range(num_threads)]
 
@@ -38,12 +47,17 @@ if __name__ == "__main__":
     request_counts = list(server_counts.values())
 
     plt.bar(server_ids, request_counts, color=[
-            'red', 'green', 'blue', 'orange', 'purple'])
+            "red", "green", "blue", "orange", "purple", "brown", "pink"])
 
     for i in range(len(request_counts)):
         plt.text(x=server_ids[i], y=request_counts[i]-0.25,
-                 s=str(request_counts[i]), size=10, fontweight='bold', ha='center')
-    plt.xlabel('Server ID')
-    plt.ylabel('Request Count')
-    plt.title('Request Count Handled by Each Server Instance')
-    plt.show()
+                 s=str(request_counts[i]), size=10, fontweight="bold", ha="center")
+    plt.xlabel("Server ID")
+    plt.ylabel("Request Count")
+    plt.title(
+        f"Request Count Handled by Each Server Instance (n{argument_value})")
+    # save the figure in current directory/n{argument_value}.png
+    plt.savefig(f"Analysis/A2/Plots/n{argument_value}.png")
+
+    with open(f"Analysis/A2/Values/n{argument_value}.txt", "w") as f:
+        f.write(str(server_counts))
