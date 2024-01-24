@@ -1,8 +1,8 @@
-# Dockerized Load Balancer
+# Load Balancer
 
 This Docker containerized load balancer is designed to efficiently distribute incoming requests among a set of maintained servers. It provides endpoints for adding new servers, removing existing servers, and retrieving details of existing servers. Additionally, a liveness checker thread monitors the health of maintained servers, taking appropriate actions in case of errors.
 
-## Workflow
+## Design Details
 
 1. **Request Handling:**
    - Upon receiving a request, a new thread is assigned to handle the request.
