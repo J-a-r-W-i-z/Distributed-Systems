@@ -1,6 +1,6 @@
 # Load Balancer
 
-This Docker containerized load balancer is designed to efficiently distribute incoming requests among a set of maintained servers. It provides endpoints for adding new servers, removing existing servers, and retrieving details of existing servers. Additionally, a liveness checker thread monitors the health of maintained servers, taking appropriate actions in case of errors.
+This Docker containerized load balancer is designed to distribute incoming requests among a set of active servers. It provides endpoints for adding new servers, removing existing servers, and retrieving details of existing servers. Additionally, a liveness checker thread monitors the health of maintained servers, taking appropriate actions in case of errors.
 
 ## Design Details
 
@@ -50,4 +50,10 @@ To build and run the Docker container, follow these steps:
 
 1. Build the Docker image:
    ```bash
-   docker build -t load-balancer .
+   make build
+   ```
+
+2. Run the Docker container:
+   ```bash
+   make run
+   ```

@@ -18,7 +18,7 @@ services:
     # aliases:
       # - test_lb_container # Usually same as containername
     environment:
-      - N=3
+      - N=6
 
 networks:
   myNetwork: {}
