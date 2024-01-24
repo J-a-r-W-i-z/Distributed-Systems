@@ -3,7 +3,9 @@
 version: "3"
 services:
   test_controller:
-    build: . # Path to the Dockerfile
+    expose:
+      - 5000
+    build: ./"Load Balancer" # Path to the Dockerfile
     image: controller
     container_name: lb
     ports:

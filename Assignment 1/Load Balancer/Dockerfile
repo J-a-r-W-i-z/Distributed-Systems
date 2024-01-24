@@ -3,7 +3,7 @@ FROM python:3.8-slim
 
 WORKDIR /app
 
-COPY test_controller.py .
+COPY load_balancer.py .
 
 RUN apt-get update && apt-get install -y sudo
 
@@ -22,6 +22,8 @@ RUN curl https://get.docker.com/builds/Linux/x86_64/docker-latest.tgz | tar xvz 
 
 # Customize here your container...
 
+RUN pip install requests
+
 ENV USER=theuser
 RUN adduser --home /home/$USER --disabled-password --gecos GECOS $USER \
   && echo "$USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$USER \
@@ -33,4 +35,7 @@ USER $USER
 
 ENV HOME=/home/$USER
 
-CMD ["python", "test_controller.py"]
+# EXPOSE 5500:5500
+EXPOSE 5000
+
+CMD ["python", "-u", "load_balancer.py"]
