@@ -82,7 +82,17 @@ class LoadBalancer:
     def get_request_slot(self, request_id):
         val = request_id * request_id + 2 * request_id + 17
         return val % TOTAL_SLOTS
+    
+    def get_request_slot_modified(self, request_id):
+        temp = request_id*random.randint(1,1000)
+        val = temp * temp + 2 * temp + 17
+        return val % TOTAL_SLOTS
 
+    def get_server_slot(self, server_id, virtual_server_id):
+        val = server_id * server_id + virtual_server_id * \
+            virtual_server_id + 2 * virtual_server_id + 25
+        return (val * 37) % TOTAL_SLOTS
+    
     def get_server_slot(self, server_id, virtual_server_id):
         val = server_id * server_id + virtual_server_id * \
             virtual_server_id + 2 * virtual_server_id + 25
