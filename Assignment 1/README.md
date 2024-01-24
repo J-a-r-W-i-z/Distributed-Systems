@@ -48,7 +48,7 @@ This Docker containerized load balancer is designed to distribute incoming reque
 7. **Hash Function Used:**
    - \( i^2 + j^2 + 2j + 25 \)
    - \( 5^i + 3^j + 2j + 25 \)
-   - \( 37 \cdot (i^2 + j^2 + 2j + 25) \)
+   - \( 37 * (i^2 + j^2 + 2j + 25) \)
 
 ## Building and Running the Docker Container
 
