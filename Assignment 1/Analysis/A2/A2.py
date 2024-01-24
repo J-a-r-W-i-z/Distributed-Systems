@@ -5,10 +5,11 @@ import sys
 import os
 
 url_to_request = "http://127.0.0.1:5000/home"
-num_threads = 50
-num_requests_per_thread = 200
+num_threads = 5
+num_requests_per_thread = 2
 
 server_counts = {}
+current_path = os.path.dirname(os.path.realpath(__file__))
 
 
 def make_get_request(i):
@@ -28,13 +29,18 @@ def make_get_request(i):
 
 
 if __name__ == "__main__":
-    # Check if the argument is provided
-    if len(sys.argv) != 2:
-        print("Usage: python script.py <argument>")
+    if len(sys.argv) != 3:
+        print("Usage: python script.py <argument> <folder_name>")
         sys.exit(1)
 
-    # Get the argument
     argument_value = sys.argv[1]
+    folder_name = sys.argv[2]
+
+    file_path = f"Analysis/A2/{folder_name}"
+    if not os.path.exists(f"{file_path}/Plots"):
+        os.makedirs(f"{file_path}/Plots")
+    if not os.path.exists(f"{file_path}/Values"):
+        os.makedirs(f"{file_path}/Values")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
         futures = [executor.submit(make_get_request, i)
@@ -55,9 +61,8 @@ if __name__ == "__main__":
     plt.xlabel("Server ID")
     plt.ylabel("Request Count")
     plt.title(
-        f"Request Count Handled by Each Server Instance (n{argument_value})")
-    # save the figure in current directory/n{argument_value}.png
-    plt.savefig(f"Analysis/A2/Plots/n{argument_value}.png")
+        f"Request Count Handled by Each Server Instance (N = {argument_value})")
+    plt.savefig(f"{file_path}/Plots/n{argument_value}.png")
 
-    with open(f"Analysis/A2/Values/n{argument_value}.txt", "w") as f:
+    with open(f"{file_path}/Values/n{argument_value}.txt", "w") as f:
         f.write(str(server_counts))
