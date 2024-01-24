@@ -146,7 +146,7 @@ class LoadBalancer:
         with self.server_map_lock:
             self.remove_server(self.server_map[server_id].name)
             del self.server_map[server_id]
-            ServerManager.delete_server_id(server_id)
+            # ServerManager.delete_server_id(server_id)
 
         with self.server_slot_map_lock:
             for slot in self.server_slot_map[server_id]:
