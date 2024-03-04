@@ -1,3 +1,1 @@
-# Distributed-Systems
-
-### Assignments
+## Distributed Systems Assignments

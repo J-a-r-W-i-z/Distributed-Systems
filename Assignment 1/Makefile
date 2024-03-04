@@ -6,11 +6,6 @@ CONTROLLER_IMAGE_NAME = controller
 WEB_SERVER_IMAGE_NAME = web-server
 
 # Targets and Rules
-# build-controller:
-# 	docker build -t $(CONTROLLER_IMAGE_NAME) ./"Load Balancer"
-
-# build-server:
-# 	docker build -t $(WEB_SERVER_IMAGE_NAME) ./Server
 
 build:
 	docker build -t $(CONTROLLER_IMAGE_NAME) ./"Load Balancer"
