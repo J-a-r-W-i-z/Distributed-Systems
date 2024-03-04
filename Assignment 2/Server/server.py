@@ -22,7 +22,19 @@ class MySQLConnection:
 
 
 app = Flask(__name__)
-mysql_connection = MySQLConnection('localhost', 'user_name', 'password', 'database_name')
+# create a mysql connection pool
+MYSQL_HOST = 'localhost'
+MYSQL_USER = 'root'
+MYSQL_PASSWORD = 'password'
+MYSQL_DATABASE = 'test'
+connection_pool = mysql.connector.pooling.MySQLConnectionPool(
+    pool_name="my_pool",
+    pool_size=5,
+    host=MYSQL_HOST,
+    user=MYSQL_USER,
+    password=MYSQL_PASSWORD,
+    database=MYSQL_DATABASE
+)
 
 def get_connection():
     try:
@@ -53,10 +65,22 @@ def close_connection(connection, cursor):
 
 @app.route('/config', methods=['POST'])
 def config():
-    cursor = mysql_connection.connection.cursor()
+    # get the payload
+    payload = request.json
+    print(payload)
+    schema = payload['schema']
+    shards = payload['shards']
+
+    connection = connection_pool.get_connection()
+    # Execute queries using the connection
+    cursor = connection.cursor()
     cursor.execute("SELECT * FROM your_table")
     data = cursor.fetchall()
     cursor.close()
+
+    # Release the connection back to the pool
+    connection.close()
+
 #  This endpoint initializes the shard tables in the server database after the container
 # is loaded. The shards are configured according to the request payload. An example request-response pair is shown below.
 # 1 Payload Json= {
