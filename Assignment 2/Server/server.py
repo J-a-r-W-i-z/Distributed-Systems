@@ -2,7 +2,27 @@ from flask import Flask, request, jsonify
 import mysql.connector
 import random
 
+class MySQLConnection:
+    _instance = None
+
+    def __new__(cls, host, user, password, database):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._connection = mysql.connector.connect(
+                host=host,
+                user=user,
+                password=password,
+                database=database
+            )
+        return cls._instance
+
+    @property
+    def connection(self):
+        return self._instance._connection
+
+
 app = Flask(__name__)
+mysql_connection = MySQLConnection('localhost', 'user_name', 'password', 'database_name')
 
 def get_connection():
     try:
@@ -30,9 +50,29 @@ def close_connection(connection, cursor):
         print(f"Error: {e}")
 
 
+
 @app.route('/config', methods=['POST'])
 def config():
-    pass # TODO: Implement this method
+    cursor = mysql_connection.connection.cursor()
+    cursor.execute("SELECT * FROM your_table")
+    data = cursor.fetchall()
+    cursor.close()
+#  This endpoint initializes the shard tables in the server database after the container
+# is loaded. The shards are configured according to the request payload. An example request-response pair is shown below.
+# 1 Payload Json= {
+# 2 "schema":{"columns":["Stud_id","Stud_name","Stud_marks"],
+# 3 "dtypes":["Number","String","String"]}
+# 4 "shards":["sh1","sh2"]
+# 5 }
+# 2
+# 6 Response Json ={
+# 7 "message" : "Server0:sh1, Server0:sh2 configured",
+# 8 "status" : "success"
+# 9 },
+# 10 Response Code = 200
+
+    
+    
 
 @app.route('/heartbeat', methods=['GET'])
 def heartbeat():
