@@ -27,6 +27,7 @@ MYSQL_HOST = 'localhost'
 MYSQL_USER = 'root'
 MYSQL_PASSWORD = 'password'
 MYSQL_DATABASE = 'test'
+
 connection_pool = mysql.connector.pooling.MySQLConnectionPool(
     pool_name="my_pool",
     pool_size=5,
@@ -77,7 +78,6 @@ def config():
     cursor.execute("SELECT * FROM your_table")
     data = cursor.fetchall()
     cursor.close()
-
     # Release the connection back to the pool
     connection.close()
 
