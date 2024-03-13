@@ -1,6 +1,7 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, current_app
 import mysql.connector
 import random
+import itertools
 
 
 class MySQLConnection:
@@ -38,7 +39,8 @@ app = Flask(__name__)
 # )
 
 
-def get_connection():
+@app.before_request
+def before_request():
     try:
         connection = mysql.connector.connect(host='localhost',
                                              database='stud_test',
@@ -48,21 +50,21 @@ def get_connection():
             db_info = connection.get_server_info()
             print(f"Connected to MySQL Server version {db_info}")
             cursor = connection.cursor()
-            return connection, cursor
-
+            current_app.config['connection'] = connection
+            current_app.config['cursor'] = cursor
     except mysql.connector.Error as e:
         print(f"Error: {e}")
         raise ConnectionError("Failed to connect to MySQL server")
 
 
-def close_connection(connection, cursor):
-    try:
-        if connection.is_connected():
-            cursor.close()
-            connection.close()
-            print("MySQL connection is closed")
-    except Exception as e:
-        print(f"Error: {e}")
+@app.teardown_request
+def teardown_request(exception):
+    connection = current_app.config.get('connection')
+    cursor = current_app.config.get('cursor')
+    if connection and connection.is_connected():
+        cursor.close()
+        connection.close()
+        print("MySQL connection is closed")
 
 
 @app.route('/config', methods=['POST'])
@@ -85,15 +87,8 @@ def config():
         }), 400
 
     try:
-        connection, cursor = get_connection()
-    except ConnectionError as e:
-        print(f"Connection error: {e}")
-        return jsonify({
-            "message": "Failed to connect to MySQL server",
-            "status": "error"
-        }), 500
-
-    try:
+        cursor = current_app.config['cursor']
+        connection = current_app.config['connection']
         for shard in shards:
             query = f"CREATE TABLE IF NOT EXISTS {shard} (\
                         {columns[0]} {map_dtype_to_sql(dtypes[0])} PRIMARY KEY,\
@@ -102,14 +97,13 @@ def config():
                     )"
             cursor.execute(query)
             connection.commit()
+
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({
             "message": f"Failed to create table for {shards[0]} and {shards[1]}",
             "status": "error"
         }), 500
-    finally:
-        close_connection(connection, cursor)
 
     return jsonify({
         "message": f"Server0:{shards[0]}, Server0:{shards[1]} configured",
@@ -119,12 +113,38 @@ def config():
 
 @app.route('/heartbeat', methods=['GET'])
 def heartbeat():
-    pass  # TODO: Implement this method
+    return '', 200
 
 
 @app.route('/copy', methods=['GET'])
 def copy():
-    pass  # TODO: Implement this method
+    paylod = request.json
+
+    if 'shards' not in paylod:
+        return jsonify({
+            "message": "Payload must contain 'shards' key",
+            "status": "error"
+        }), 400
+
+    shards = paylod['shards']
+
+    response = {}
+    try:
+        cursor = current_app.config['cursor']
+
+        for shard in shards:
+            query = f"SELECT * FROM {shard}"
+            cursor.execute(query)
+            response[shard] = list_to_colmap(cursor)
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({
+            "message": f"Failed to query data",
+            "status": "error"
+        }), 500
+
+    response['status'] = 'success'
+    return jsonify(response), 200
 
 
 @app.route('/read', methods=['POST'])
@@ -145,6 +165,12 @@ def update():
 @app.route('/del', methods=['DELETE'])
 def delete():
     pass  # TODO: Implement this method
+
+
+def list_to_colmap(cursor):
+    desc = cursor.description
+    column_names = [col[0] for col in desc]
+    return [{column_names[i]: row[i] for i in range(len(row))} for row in cursor.fetchall()]
 
 
 def map_dtype_to_sql(dtype):
