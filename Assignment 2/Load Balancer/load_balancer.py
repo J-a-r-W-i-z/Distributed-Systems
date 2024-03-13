@@ -1,5 +1,7 @@
 from flask import Flask, request, jsonify
 import mysql.connector
+import os
+import subprocess
 import random
 
 app = Flask(__name__)
@@ -62,5 +64,13 @@ def update():
 def delete():
     pass # TODO: Implement this method
 
+def spawn_server(self, id, name, hostname, port):
+        command = f"sudo docker run --name {name} --network assignment2_myNetwork --network-alias {name}  --hostname {hostname} -e SERVER_ID={id} -p {port}:5000 web-server"
+        subprocess.Popen(command, shell=True)
+
+def remove_server(self, container_name):
+    os.system(f"sudo docker stop {container_name} && sudo docker rm {container_name}")
+
 if __name__ == '__main__':
+    
     app.run(debug=True, port=5000, threaded=True)
