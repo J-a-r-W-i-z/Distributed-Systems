@@ -85,7 +85,34 @@ def read():
 
 @app.route('/write', methods=['POST'])
 def write():
-    pass # TODO: Implement this method
+     # TODO: Implement this method
+    pass
+'''
+read and write locks
+    - read lock: multiple clients can read at the same time
+    - write lock: only one client can write at a time
+ -- Reading task:
+    - acquire read_count lock
+    - increment read_count
+    - if read_count == 1
+        - acquire write lock
+    - release read_count lock
+    - read data
+    - acquire read_count lock
+    - decrement read_count
+    - if read_count == 0
+        - release write lock
+    - release read_count lock
+    
+-- Writing task:
+    - acquire write lock
+    - write data
+    - release write lock
+
+
+'''
+
+
 
 @app.route('/update', methods=['PUT'])
 def update():
