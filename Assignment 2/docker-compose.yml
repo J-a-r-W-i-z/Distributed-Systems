@@ -16,7 +16,7 @@ services:
     networks:
       - myNetwork # Need to define net1 in the compose file
     environment:
-      - N=2
+      - N=3
 
 networks:
   myNetwork: {}
