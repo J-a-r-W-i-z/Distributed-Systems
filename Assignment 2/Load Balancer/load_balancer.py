@@ -9,35 +9,10 @@ app = Flask(__name__)
 sql_connection_pool = None
 MAX_RETRY = 1000
 
-def get_connection():
-    try:
-        # Connection parameters
-        connection = mysql.connector.connect(host='localhost',
-                                             database='your_database_name',
-                                             user='your_username',
-                                             password='your_password')
-        if connection.is_connected():
-            db_info = connection.get_server_info()
-            print(f"Connected to MySQL Server version {db_info}")
-            cursor = connection.cursor()
-            return connection, cursor
-        
-    except Exception as e:
-        print(f"Error: {e}")
-
-def close_connection(connection, cursor):
-    try:
-        if connection.is_connected():
-            cursor.close()
-            connection.close()
-            print("MySQL connection is closed")
-    except Exception as e:
-        print(f"Error: {e}")
-
-def connect_to_sql_server(max_pool_size=5, host='localhost', user='root', password='password', database='test'):
+def connect_to_sql_server(max_pool_size=5, host='localhost', user='root', password='password', database='mydb'):
     global sql_connection_pool
     flag = True
-    tries =0
+    tries = 0
     while True:
         if tries > MAX_RETRY:
             print("Max retry limit reached.\n Couldn't connect to MySql server\n Exiting...")
@@ -62,6 +37,24 @@ def connect_to_sql_server(max_pool_size=5, host='localhost', user='root', passwo
         except Exception as e:
             tries += 1
             print(f"Error occursed while connecting to sql server: {e}")
+
+@app.route('/')
+def index():
+    data = "Hello, World!"
+    return jsonify(data)
+
+@app.route('/test')
+def gett():
+    connection = sql_connection_pool.get_connection()
+    cursor = connection.cursor()
+    # cursor = sql_connection_pool.cursor()
+    cursor.execute("SELECT user FROM mysql.user;")
+    rows = cursor.fetchall()
+    for row in rows:
+        print(row)
+    cursor.close()
+    connection.close()
+    return jsonify("Success")
 
 @app.route('/init', methods=['POST'])
 def init():
@@ -95,13 +88,18 @@ def update():
 def delete():
     pass # TODO: Implement this method
 
-def spawn_server(self, id, name, hostname, port):
-        command = f"sudo docker run --name {name} --network assignment2_myNetwork --network-alias {name}  --hostname {hostname} -e SERVER_ID={id} -p {port}:5000 web-server"
+def spawn_server(id, name, hostname, port):
+        command = f"sudo docker run -p {port}:5000 --name {name} --network assignment2_myNetwork --network-alias {name}  --hostname {hostname} -e SERVER_ID={id} web-server"
         subprocess.Popen(command, shell=True)
 
-def remove_server(self, container_name):
+def remove_server(container_name):
     os.system(f"sudo docker stop {container_name} && sudo docker rm {container_name}")
 
 if __name__ == '__main__':
-    
-    app.run(debug=True, port=5000, threaded=True)
+    print("Running load balancer...")
+    connect_to_sql_server()
+    print("Creating Servers...")
+    for i in range(1,4):
+        spawn_server(i, f"server{i}", f"server{i}", 5000+i)
+        print(f"Server {i} created")
+    app.run(debug=False, port=5000, host="0.0.0.0", threaded=True)

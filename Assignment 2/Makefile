@@ -1,14 +1,16 @@
 # Makefile for Docker commands
 
 # Variables
-NETWORK_NAME = assignment1_myNetwork
+NETWORK_NAME = assignment2_myNetwork
 CONTROLLER_IMAGE_NAME = controller
 WEB_SERVER_IMAGE_NAME = web-server
 
 # Targets and Rules
 
-ban:
+lbban:
 	docker build -t $(CONTROLLER_IMAGE_NAME) ./"Load Balancer"
+
+serverban:
 	docker build -t $(WEB_SERVER_IMAGE_NAME) ./Server
 
 chal:
@@ -19,4 +21,4 @@ ruk:
 	docker ps -aq --filter network=$(NETWORK_NAME) | xargs -r docker rm
 	docker compose down
 
-.PHONY: ban chal ruk
+.PHONY: lbban serverban chal ruk
