@@ -47,6 +47,9 @@ connection_pool = mysql.connector.pooling.MySQLConnectionPool(
 
 @app.before_request
 def before_request():
+    if request.endpoint == 'heartbeat':
+        return
+
     g.connection = connection_pool.get_connection()
 
 
