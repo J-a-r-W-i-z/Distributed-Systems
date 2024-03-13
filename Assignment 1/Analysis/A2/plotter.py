@@ -27,8 +27,8 @@ def main():
         sys.exit(1)
 
     folder_name = sys.argv[1]
-    file_path = f"Analysis/A2/{folder_name}"
-    values_folder = f"{file_path}/Values"
+    plot_file_path = f"Analysis/A2/{folder_name}"
+    values_folder = f"{plot_file_path}/Values"
 
     files = sorted([f for f in os.listdir(
         values_folder) if f.endswith(".txt")])
@@ -66,7 +66,7 @@ def main():
     plt.ylabel("Standard Deviation")
     plt.title("Standard Deviation of Server Counts")
     plt.legend()
-    plt.savefig(f"{file_path}/standard_deviation.png")
+    plt.savefig(f"{plot_file_path}/standard_deviation.png")
 
 
 if __name__ == "__main__":
