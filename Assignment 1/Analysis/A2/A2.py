@@ -5,8 +5,8 @@ import sys
 import os
 
 url_to_request = "http://127.0.0.1:5000/home"
-num_threads = 5
-num_requests_per_thread = 2
+num_threads = 50
+num_requests_per_thread = 200
 
 server_counts = {}
 current_path = os.path.dirname(os.path.realpath(__file__))

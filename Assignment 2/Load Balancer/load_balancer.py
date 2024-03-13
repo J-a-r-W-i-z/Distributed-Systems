@@ -3,8 +3,11 @@ import mysql.connector
 import os
 import subprocess
 import random
+from time import sleep
 
 app = Flask(__name__)
+sql_connection_pool = None
+MAX_RETRY = 1000
 
 def get_connection():
     try:
@@ -31,6 +34,34 @@ def close_connection(connection, cursor):
     except Exception as e:
         print(f"Error: {e}")
 
+def connect_to_sql_server(max_pool_size=5, host='localhost', user='root', password='password', database='test'):
+    global sql_connection_pool
+    flag = True
+    tries =0
+    while True:
+        if tries > MAX_RETRY:
+            print("Max retry limit reached.\n Couldn't connect to MySql server\n Exiting...")
+            exit(1)
+        try:
+            if flag:
+                print("Creating MySQL connection pool...")
+                flag = False
+            else:
+                print("Retrying to connect to mysql server...")
+                sleep(3)
+            if sql_connection_pool is None:
+                sql_connection_pool = mysql.connector.pooling.MySQLConnectionPool(
+                    pool_name="my_pool",
+                    pool_size=max_pool_size,
+                    host=host,
+                    user=user,
+                    password=password,
+                    database=database
+                )
+                return
+        except Exception as e:
+            tries += 1
+            print(f"Error occursed while connecting to sql server: {e}")
 
 @app.route('/init', methods=['POST'])
 def init():
