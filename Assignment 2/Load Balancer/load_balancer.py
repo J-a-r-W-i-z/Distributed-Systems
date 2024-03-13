@@ -65,7 +65,28 @@ def connect_to_sql_server(max_pool_size=5, host='localhost', user='root', passwo
 
 @app.route('/init', methods=['POST'])
 def init():
-    pass # TODO: Implement this method
+    payload = request.json
+
+    if 'shards' not in payload or 'schema' not in payload or 'servers' not in payload:
+        return jsonify({
+            "message": "Payload must contain 'shards' and 'schema' keys",
+            "status": "error"
+        }), 400
+
+    schema, shards,servers = payload['schema'], payload['shards'],payload['servers']
+    print(f"Schema: {schema}, Shards: {shards}, Servers: {servers}")
+    # insert Data into ShardT Table (Stud id low: Number, Shard id: Number, Shard size:Number, valid idx:Number)
+    connection = sql_connection_pool.get_connection()
+    cursor = connection.cursor()
+    for shard in shards:
+        Stud_id_low, shard_size, shard_id = shard['Stud_id_low'], shard['Shard_size'], shard['shard_id']
+        cursor.execute(f"INSERT INTO ShardT VALUES ({Stud_id_low}, {shard_id}, {shard_size}, 0)")
+    # insert Data into MapT table (Shard id: Number, Server id: Number)
+    for server in servers:
+        server_id, shard_id = server['server_id'], server['shard_id']
+        cursor.execute(f"INSERT INTO MapT VALUES ({shard_id}, {server_id})")
+    
+
    
 @app.route('/status', methods=['GET'])
 def status():
@@ -103,7 +124,7 @@ read and write locks
     - if read_count == 0
         - release write lock
     - release read_count lock
-    
+
 -- Writing task:
     - acquire write lock
     - write data
