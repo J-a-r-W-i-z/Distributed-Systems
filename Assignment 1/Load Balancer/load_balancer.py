@@ -86,7 +86,7 @@ class LoadBalancer:
     def get_server_slot(self, server_id, virtual_server_id):
         val = server_id * server_id + virtual_server_id * \
             virtual_server_id + 2 * virtual_server_id + 25
-        return val % TOTAL_SLOTS
+        return (val * 53) % TOTAL_SLOTS
 
     def spawn_server(self, id, name, hostname, port):
         command = f"sudo docker run --name {name} --network assignment1_myNetwork --network-alias {name}  --hostname {hostname} -e SERVER_ID={id} -p {port}:5000 web-server"
@@ -322,6 +322,17 @@ class RequestHandler(BaseHTTPRequestHandler):
 
             if (n < len(hostnames)):
                 self.post_error_handler()
+                return
+
+            if n > len(self.lb.server_map):
+                response_data = {
+                    "message": "<Error> Length of removed instances is more than total instances",
+                    "status": "failure"
+                }
+                self.send_response(400)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(response_data).encode())
                 return
 
             for hostname in hostnames:
