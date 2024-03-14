@@ -16,6 +16,7 @@ RUN chmod 777 /docker-entrypoint-initdb.d/deploy.sh
 RUN apt-get update && apt-get install -y python3 python3-pip 
 RUN pip install flask --break-system-packages
 RUN pip install mysql-connector-python --break-system-packages
+RUN pip install requests --break-system-packages
 
 # Copy the Flask application files to the container
 COPY . /app

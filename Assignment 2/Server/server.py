@@ -1,5 +1,6 @@
-from flask import Flask, request, jsonify, g
+from flask import Flask, request, jsonify, g, Response
 import mysql.connector
+from time import sleep
 import random
 import itertools
 
@@ -25,24 +26,39 @@ class MySQLConnection:
 
 app = Flask(__name__)
 
-# Database configuration
-MYSQL_HOST = 'localhost'
-MYSQL_USER = 'root'
-MYSQL_PASSWORD = 'password'
-MYSQL_DATABASE = 'stud_test'
+sql_connection_pool = None
+MAX_RETRY = 1000
 
-# Pooling configuration
-POOL_NAME = "my_pool"
-POOL_SIZE = 5
 
-connection_pool = mysql.connector.pooling.MySQLConnectionPool(
-    pool_name=POOL_NAME,
-    pool_size=POOL_SIZE,
-    host=MYSQL_HOST,
-    user=MYSQL_USER,
-    password=MYSQL_PASSWORD,
-    database=MYSQL_DATABASE
-)
+def connect_to_sql_server(max_pool_size=30, host='localhost', user='root', password='password', database='mydb'):
+    global sql_connection_pool
+    flag = True
+    tries = 0
+    while True:
+        if tries > MAX_RETRY:
+            print(
+                "Max retry limit reached.\n Couldn't connect to MySql server\n Exiting...")
+            exit(1)
+        try:
+            if flag:
+                print("Creating MySQL connection pool...")
+                flag = False
+            else:
+                print("Retrying to connect to mysql server...")
+                sleep(3)
+            if sql_connection_pool is None:
+                sql_connection_pool = mysql.connector.pooling.MySQLConnectionPool(
+                    pool_name="my_pool",
+                    pool_size=max_pool_size,
+                    host=host,
+                    user=user,
+                    password=password,
+                    database=database
+                )
+                return
+        except Exception as e:
+            tries += 1
+            print(f"Error occursed while connecting to sql server: {e}")
 
 
 @app.before_request
@@ -50,7 +66,7 @@ def before_request():
     if request.endpoint == 'heartbeat':
         return
 
-    g.connection = connection_pool.get_connection()
+    g.connection = sql_connection_pool.get_connection()
 
 
 @app.teardown_request
@@ -327,4 +343,6 @@ def map_dtype_to_sql(dtype):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000, threaded=True)
+    print("Running server...")
+    connect_to_sql_server()
+    app.run(debug=False, port=5000, host="0.0.0.0", threaded=True)

@@ -1,15 +1,16 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 import mysql.connector
 import os
 import subprocess
 import random
+import requests
 from time import sleep
 
 app = Flask(__name__)
 sql_connection_pool = None
 MAX_RETRY = 1000
 
-def connect_to_sql_server(max_pool_size=5, host='localhost', user='root', password='password', database='mydb'):
+def connect_to_sql_server(max_pool_size=30, host='localhost', user='root', password='password', database='mydb'):
     global sql_connection_pool
     flag = True
     tries = 0
@@ -38,16 +39,18 @@ def connect_to_sql_server(max_pool_size=5, host='localhost', user='root', passwo
             tries += 1
             print(f"Error occursed while connecting to sql server: {e}")
 
-@app.route('/')
-def index():
-    data = "Hello, World!"
-    return jsonify(data)
+@app.route('/<user_path>', methods=['GET'])
+def index(user_path):
+    response = requests.get(f"http://server1:5000/{user_path}")
+    filtered_headers = {key: value for key, value in response.headers.items()
+                        if key.lower() in ['content-type', 'content-length', 'connection', 'date']}
+    
+    return Response(response.content, status=response.status_code, headers=filtered_headers)
 
-@app.route('/test')
+@app.route('/test', methods=['GET'])
 def gett():
     connection = sql_connection_pool.get_connection()
     cursor = connection.cursor()
-    # cursor = sql_connection_pool.cursor()
     cursor.execute("SELECT user FROM mysql.user;")
     rows = cursor.fetchall()
     for row in rows:
@@ -89,7 +92,7 @@ def delete():
     pass # TODO: Implement this method
 
 def spawn_server(id, name, hostname, port):
-        command = f"sudo docker run -p {port}:5000 --name {name} --network assignment2_myNetwork --network-alias {name}  --hostname {hostname} -e SERVER_ID={id} web-server"
+        command = f"sudo docker run --network assignment2_myNetwork --name {name} --hostname {hostname} -e SERVER_ID={id} web-server"
         subprocess.Popen(command, shell=True)
 
 def remove_server(container_name):
