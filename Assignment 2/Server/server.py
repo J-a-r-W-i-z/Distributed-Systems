@@ -181,7 +181,47 @@ def read():
 
 @app.route('/write', methods=['POST'])
 def write():
-    pass  # TODO: Implement this method
+    payload = request.json
+
+    if 'shard' not in payload or 'curr_idx' not in payload or 'data' not in payload:
+        return jsonify({
+            "message": "Payload must contain 'shard', 'curr_idx' and 'data' keys",
+            "status": "error"
+        }), 400
+
+    shard, curr_idx, data = payload['shard'], payload['curr_idx'], payload['data']
+
+    try:
+        cursor = g.connection.cursor()
+
+        cursor.execute(f"SELECT Stud_id FROM {shard}")
+        existing_ids = {row[0] for row in cursor.fetchall()}
+
+        filtered_data = [
+            entry for entry in data if entry['Stud_id'] not in existing_ids]
+
+        for entry in filtered_data:
+            columns = ', '.join(entry.keys())
+            values = ', '.join(f"'{value}'" for value in entry.values())
+            query = f"INSERT INTO {shard} ({columns}) VALUES ({values})"
+            cursor.execute(query)
+
+        new_idx = curr_idx + len(filtered_data)
+        g.connection.commit()
+
+        return jsonify({
+            "message": "Data entries added",
+            "current_idx": new_idx,
+            "status": "success"
+        }), 200
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({
+            "message": f"Failed to add data entries",
+            "status": "error"
+        }), 500
+    finally:
+        cursor.close()
 
 
 @app.route('/update', methods=['PUT'])
