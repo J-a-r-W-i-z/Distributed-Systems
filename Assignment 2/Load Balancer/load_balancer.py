@@ -14,6 +14,7 @@ app = Flask(__name__)
 sql_connection_pool = None
 MAX_RETRY = 100
 LIVENESS_SLEEP_TIME = 5
+NUM_REPLICA = 3
 server_id_to_hostname = dict()
 MAX_TIMEOUT = 10
 server_id_to_shard = dict()
@@ -26,6 +27,7 @@ sis_lock = threading.Lock()
 mapT_lock = threading.Lock()
 shardT_lock = threading.Lock()
 n_lock = threading.Lock()
+
 
 def connect_to_sql_server(max_pool_size=30, host='localhost', user='root', password='password', database='mydb'):
     global sql_connection_pool
@@ -97,15 +99,47 @@ def init():
     global SCHEMA
     global shard_data
     global server_id_to_shard
+    global N
     payload = request.json
 
-    if 'shards' not in payload or 'schema' not in payload or 'servers' not in payload:
+    if 'N' not in payload or 'shards' not in payload or 'schema' not in payload :
         return jsonify({
             "message": "Payload must contain 'shards' and 'schema' keys",
             "status": "error"
         }), 400
+    
+    schema, shards,total_server = payload['schema'], payload['shards'],payload['N']
+    N = total_server
+    servers= {}
+    if 'servers' not in payload:
+        server_ids = []
+        # generate server ids 
+        for _ in range(total_server):
+            temp = random.randint(100000, 999999)
+            while temp in server_ids:
+                temp = random.randint(100000, 999999)
+            server_ids.append(temp)
+        
+        num_shards = len(shards)
+        server_picker_list = [[i for i in range(total_server)]]*num_shards
 
-    schema, shards,servers = payload['schema'], payload['shards'],payload['servers']
+        for i in range(NUM_REPLICA):
+            for j in range(num_shards):
+                pos = random.choice(server_picker_list[j])
+                server_id = server_ids[pos]
+                if server_id not in servers:
+                    servers[server_id] = []
+                servers[server_id].append(shards[j]['Shard_id'])
+                server_picker_list[j].remove(pos)   
+        
+    else:
+        servers = payload['servers']
+        # make sure all server id and shard id's are integer
+        for server_id in servers.keys():
+            servers[int(server_id)] = [int(shard_id) for shard_id in servers[server_id]]
+            servers.pop(server_id)
+
+
     SCHEMA = schema
     shard_data = shards 
     server_id_to_shard = servers
