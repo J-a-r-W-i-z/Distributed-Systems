@@ -22,6 +22,7 @@ server_id_to_hostname = dict()
 MAX_TIMEOUT = 10
 server_id_to_shard = dict()
 shard_data = []
+read_result=[]
 SCHEMA = None
 N = 0
 
@@ -306,7 +307,29 @@ def rm():
 
 @app.route('/read', methods=['POST'])
 def read():
-    pass
+    global read_result
+
+    payload = request.json
+    if 'Stud_id' not in payload:
+        return jsonify({
+            "message": "Payload must contain 'Stud_id' key",
+            "status": "error"
+        }), 400
+    stud_id = payload['Stud_id']
+
+    low = stud_id['low']
+    high = stud_id['high']
+    # Get all shards in range
+    shards = get_shards_in_range(low, high)
+    num_thread = len(shards)
+    threads = []
+    read_result = []
+    for i in range(num_thread):
+        threads.append(threading.Thread(target=read_thread_runner, args=(shards[i],low, high)))
+        threads[i].start()
+    for i in range(num_thread):
+        threads[i].join()
+    
 
 @app.route('/write', methods=['POST'])
 def write():
@@ -428,6 +451,28 @@ def delete():
 
 # Utility Functions
 
+def read_thread_runner(shard_id,low, high):
+    global read_result
+    # Get all servers where shard is present
+    request_id = random.randint(100000, 999999)
+    server_id = get_server_assignment(shard_id,request_id)
+    # Read data from all replicas
+    with sih_lock:
+        hostname = server_id_to_hostname[server_id]
+    try:
+        # Send get request to server to read the data
+        response = requests.get(f"http://{hostname}/read", json={"shard": shard_id,"Stud_id": {"low": low, "high": high}})
+        if response.status_code == 200:
+            print(f"Data successfully read from server {server_id}")
+            read_result.extend(response.json()["data"])
+        else:
+            print(f"Error occured while reading data from server {server_id}")
+    except requests.exceptions.RequestException as e:
+        print(f"Exception occured while reading data from server {server_id}: {e}")
+        
+
+def get_server_assignment(shard_id,request_id):
+    pass
 
 def generate_response_string(servers):
     result = ""
