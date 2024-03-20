@@ -293,8 +293,47 @@ def read():
 
 @app.route('/write', methods=['POST'])
 def write():
-     # TODO: Implement this method
-    pass
+    payload = request.json
+    data = payload['data']
+    # For Each entry:
+    for entry in data:
+        # Get shard_id from stud_id
+        shard_id = get_shard_id_from_stud_id(entry['Stud_id'])
+        with write_lock_list[shard_id]:
+            # Get all servers where shard is present
+            server_ids = get_servers_for_shards(shard_id)
+            # Write entry in all replicas
+            for server_id in server_ids:
+                with sih_lock:
+                    hostname = server_id_to_hostname[server_id]
+                # Get valid_idx from ShardT table
+                connection = sql_connection_pool.get_connection()
+                cursor = connection.cursor()
+                with shardT_lock:
+                    cursor.execute(f"SELECT Valid_idx FROM ShardT WHERE Shard_id={shard_id}")
+                valid_idx = cursor.fetchone()[0]
+                cursor.close()
+                connection.close()
+                try:
+                    response = requests.post(f"http://{hostname}/write", json={"shard": shard_id, "curr_idx": valid_idx, "data": [entry]})
+                    if response.status_code == 200:
+                        print(f"Data successfully written to server {server_id}")
+                    else:
+                        print(f"Error occured while writing data to server {server_id}")
+                except requests.exceptions.RequestException as e:
+                    print(f"Exception occured while writing data to server {server_id}: {e}")
+                    continue
+                # Update vaild_idx in ShardT table
+                connection = sql_connection_pool.get_connection()
+                cursor = connection.cursor()
+                with shardT_lock:
+                    cursor.execute(f"UPDATE ShardT SET Valid_idx = Valid_idx + 1 WHERE Shard_id={shard_id}")
+                cursor.close()
+                connection.close()
+                
+    return jsonify({"message": f"{len(data)} Data entries added", "status": "success"}), 200
+            
+
 '''
 read and write locks
     - read lock: multiple clients can read at the same time
@@ -318,15 +357,59 @@ read and write locks
     - release write lock
 '''
 
-
-
 @app.route('/update', methods=['PUT'])
 def update():
-    pass # TODO: Implement this method
+    payload = request.json
+    data = payload['data']
+    # Get shard_id from stud_id
+    shard_id = get_shard_id_from_stud_id(data['Stud_id'])
+    with write_lock_list[shard_id]:
+        # Get all servers where shard is present
+        server_ids = get_servers_for_shards(shard_id)
+        # Write entry in all replicas
+        for server_id in server_ids:
+            with sih_lock:
+                hostname = server_id_to_hostname[server_id]
+            try:
+                # Send put request to server to update the data
+                response = requests.put(f"http://{hostname}/update", json={"shard": shard_id, "Stud_id": payload['Stud_id'], "data": data})
+                if response.status_code == 200:
+                    print(f"Data successfully written to server {server_id}")
+                else:
+                    print(f"Error occured while writing data to server {server_id}")
+            except requests.exceptions.RequestException as e:
+                print(f"Exception occured while writing data to server {server_id}: {e}")
+                continue
+    return jsonify({"message": f"Data entry for Stud_id:{payload['Stud_id']} updated", "status": "success"}), 200
+
 
 @app.route('/del', methods=['DELETE'])
 def delete():
-    pass # TODO: Implement this method
+    payload = request.json
+    # Get shard_id from stud_id
+    shard_id = get_shard_id_from_stud_id(payload['Stud_id'])
+    with write_lock_list[shard_id]:
+        # Get all servers where shard is present
+        server_ids = get_servers_for_shards(shard_id)
+        # Write entry in all replicas
+        for server_id in server_ids:
+            with sih_lock:
+                hostname = server_id_to_hostname[server_id]
+            try:
+                # Send del request to server to delete the data
+                response = requests.delete(f"http://{hostname}/del", json={"shard": shard_id, "Stud_id": payload['Stud_id']})
+                if response.status_code == 200:
+                    print(f"Data successfully written to server {server_id}")
+                else:
+                    print(f"Error occured while writing data to server {server_id}")
+            except requests.exceptions.RequestException as e:
+                print(f"Exception occured while writing data to server {server_id}: {e}")
+                continue
+    return jsonify({"message": f"Data entry with Stud_id:{payload['Stud_id']} removed", "status": "success"}), 200
+
+
+
+# Utility Functions
 
 
 def generate_response_string(servers):
@@ -374,7 +457,6 @@ def insert_data_into_shard_table(data):
     for shard in data:
         Stud_id_low, shard_size, shard_id = shard['Stud_id_low'], shard['Shard_size'], shard['Shard_id']
         cursor.execute(f"INSERT INTO ShardT VALUES ({Stud_id_low}, {shard_id}, {shard_size}, 0)")
-    
     cursor.close()
     connection.close()
 
@@ -389,6 +471,16 @@ def get_server_slot(server_id, shard_id):
 
 def convert_to_server_id(server_name):
     return int(server_name[6:])
+
+def get_shard_id_from_stud_id(stud_id):
+    connection = sql_connection_pool.get_connection()
+    cursor = connection.cursor()
+    with shardT_lock:
+        cursor.execute(f"SELECT Shard_id FROM ShardT WHERE Stud_id_low <= {stud_id} ORDER BY Stud_id_low DESC LIMIT 1")
+    shard_id = cursor.fetchone()[0]
+    cursor.close()
+    connection.close()
+    return shard_id
 
 def get_server_id():
     number = random.randint(100000, 999999)
@@ -450,14 +542,25 @@ def remove_data_of_server(server_id):
 
 def get_server_for_shard(shard_id):
     # TODO : Can update for faster access from RAM
+    connection = sql_connection_pool.get_connection()
+    cursor = connection.cursor()
     with mapT_lock:
-        connection = sql_connection_pool.get_connection()
-        cursor = connection.cursor()
         cursor.execute(f"SELECT Server_id FROM MapT WHERE Shard_id={shard_id}")
-        server_id = cursor.fetchone()[0]
-        cursor.close()
-        connection.close()
+    server_id = cursor.fetchone()[0]
+    cursor.close()
+    connection.close()
     return server_id
+
+def get_servers_for_shards(shard_id):
+    # TODO : Can update for faster access from RAM
+    connection = sql_connection_pool.get_connection()
+    cursor = connection.cursor()
+    with mapT_lock:
+        cursor.execute(f"SELECT Server_id FROM MapT WHERE Shard_id={shard_id}")
+    server_ids = cursor.fetchall()
+    cursor.close()
+    connection.close()
+    return server_ids
 
 def liveness_checker():
     while True:
@@ -516,7 +619,8 @@ def liveness_checker():
                     # Get valid_idx from ShardT table
                     connection = sql_connection_pool.get_connection()
                     cursor = connection.cursor()
-                    cursor.execute(f"SELECT Valid_idx FROM ShardT WHERE Shard_id={shard_id}")
+                    with shardT_lock:
+                        cursor.execute(f"SELECT Valid_idx FROM ShardT WHERE Shard_id={shard_id}")
                     valid_idx = cursor.fetchone()[0]
                     cursor.close()
                     connection.close()
