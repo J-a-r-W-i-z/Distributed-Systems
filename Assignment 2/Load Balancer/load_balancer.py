@@ -251,7 +251,7 @@ def add():
         return jsonify({"message": "Couldn't spawn all servers successfully", "status": "error", "unsuccesful_servers": unsuccesful_servers}), 207
 
     N+=n
-    return jsonify({"N":N,"message": generate_response_string(servers.keys()), "status": "successful"}), 200
+    return jsonify({"N":N,"message": generate_response_string(list(servers.keys())), "status": "successful"}), 200
 
 
 @app.route('/rm', methods=['DELETE'])
@@ -266,30 +266,47 @@ def rm():
             "status": "error"
         }), 400
 
-    n, servers = payload['n'], payload['servers']
-
-    if n>len(servers):
+    n, servers_to_remove = payload['n'], payload['servers']
+    if n>N:
         return jsonify({
             "message": "<Error> Number of servers to remove (n) is greater than total instances",
             "status": "failure"
         }), 400
     
-    if n<len(servers):
+    if n<len(servers_to_remove):
         return jsonify({
             "message": "<Error> Number of servers to remove (n) is less than total instances",
             "status": "failure"
         }), 400
     
-    for server_id in servers:
+    temp_servers = []
+    for ss in servers_to_remove:
+        temp_servers.append(convert_to_server_id(ss))
+    servers_to_remove = temp_servers
+
+
+    
+    if n>len(servers_to_remove):
+        # randomly choose total N servers to remove
+        server_ids = list(server_id_to_hostname.keys())
+        for ser in servers_to_remove:
+            server_ids.remove(ser)
+        while len(server_ids) !=n:
+            random_servers = random.choice(server_ids)
+            servers_to_remove.append(random_servers)
+            server_ids.remove(random_servers)
+
+    for server_id in servers_to_remove:
         remove_server(f"server{server_id}")
         remove_data_of_server(server_id)
+
     
     N-=n
-    return jsonify({"N":N,"message": generate_response_string(servers), "status": "successful"}), 200
+    return jsonify({"N":N,"servers":[f"Server{ss}" for ss in servers_to_remove], "status": "successful"}), 200
 
 @app.route('/read', methods=['POST'])
 def read():
-    pass # TODO: Implement this method
+    pass
 
 @app.route('/write', methods=['POST'])
 def write():
@@ -439,7 +456,7 @@ def initialize_servers(servers):
             print(f"Couldn't spawn server {server_id} with hostname {hostname} ")
             unsuccesful_servers[server_id] = servers[server_id]
 
-def insert_data_into_chds(servers, unsuccesful_servers):
+def insert_data_into_chds(servers, unsuccesful_servers=[]):
     global shard_to_server
     global fast_server_assignment_map
 
@@ -449,6 +466,8 @@ def insert_data_into_chds(servers, unsuccesful_servers):
                 pos = get_server_slot(server_id, shard_id)
                 shard_to_server[shard_id][pos] = server_id
                 bisect.insort_left(fast_server_assignment_map[shard_id],pos)
+
+
 
 def insert_data_into_shard_table(data):
     # insert Data into ShardT Table (Stud id low: Number, Shard id: Number, Shard size:Number, valid idx:Number)
@@ -528,11 +547,22 @@ def add_data_of_server(server_id, hostname, shard_ids):
     connection.close()
 
 def remove_data_of_server(server_id):
+    # remove data from server_id_to_hostname and server_id_to_shard
     with sih_lock:
         del server_id_to_hostname[server_id]
     with sis_lock:
         del server_id_to_shard[server_id]
 
+    # remove data from consistent hashing data structures
+    for shard_id in server_id_to_shard[server_id]:
+
+        for i in range(NUM_SLOTS):
+            if shard_to_server[shard_id][i] == server_id:
+                shard_to_server[shard_id][i] = None
+                fast_server_assignment_map[shard_id].remove(i)
+
+    # remove from the MapT table        
+        
     connection = sql_connection_pool.get_connection()
     cursor = connection.cursor()
     with mapT_lock:
@@ -603,6 +633,7 @@ def liveness_checker():
             spawn_server(server_id, hostname, hostname)
             if spawned_successfully(hostname, shard_ids_for_new_servers[i]):
                 add_data_of_server(server_id, hostname, shard_ids_for_new_servers[i])
+                insert_data_into_chds({server_id: shard_ids_for_new_servers[i]})
             else:
                 print(f"Couldn't spawn server {server_id} with hostname {hostname} successfully")
             
