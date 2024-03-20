@@ -1,3 +1,5 @@
+import bisect
+from collections import deque
 from flask import Flask, request, jsonify, Response
 import mysql.connector
 import os
@@ -12,6 +14,7 @@ import requests
 
 app = Flask(__name__)
 sql_connection_pool = None
+NUM_SLOTS =512
 MAX_RETRY = 100
 LIVENESS_SLEEP_TIME = 5
 NUM_REPLICA = 3
@@ -22,6 +25,12 @@ shard_data = []
 SCHEMA = None
 N = 0
 
+# Consistent Hashing Data Structures
+shard_to_server = {}
+fast_server_assignment_map = {}
+
+# Locks used in the code
+
 sih_lock = threading.Lock()
 sis_lock = threading.Lock()
 mapT_lock = threading.Lock()
@@ -29,6 +38,7 @@ shardT_lock = threading.Lock()
 n_lock = threading.Lock()
 write_lock_list = {}
 read_count_lock_list = {}
+
 read_count = {}
 
 
@@ -103,6 +113,8 @@ def init():
     global shard_data
     global server_id_to_shard
     global N
+    global shard_to_server 
+    global fast_server_assignment_map
     payload = request.json
 
     if 'N' not in payload or 'shards' not in payload or 'schema' not in payload :
@@ -137,54 +149,39 @@ def init():
         
     else:
         servers = payload['servers']
-        # make sure all server id and shard id's are integer
-        for server_id in servers.keys():
-            servers[int(server_id)] = [int(shard_id) for shard_id in servers[server_id]]
-            servers.pop(server_id)
+        # make sure all server id and shard id's are integer (Potential Bug: In copying the data structure)
+        temp_servers = servers.copy()
+        
+        for ss in servers.keys():
+            temp_servers[convert_to_server_id(ss)] = servers[ss]
+        
+        servers = temp_servers
 
 
     SCHEMA = schema
     shard_data = shards 
     server_id_to_shard = servers
+
     print(f"Schema: {schema}, Shards: {shards}, Servers: {servers}")
+
     # make request to each server to create the database
-    unsucessful_list=[]
-    for server_id in servers.keys():
-        hostname = server_id_to_hostname[server_id] 
-        print(f"Making request to server {server_id} with hostname {hostname} to create database {schema}")
-        try:
-            response = requests.post(f"http://{hostname}/config", json={"schema": schema,"shards": servers[server_id]},timeout=MAX_TIMEOUT)
-            if response.status_code != 200:
-                print(f"Error occured while making request to server {server_id} with hostname {hostname} to create database {schema}: {response.json()}")
-                return jsonify({
-                    "message": f"Couldn't configure server {server_id} with hostname {hostname} to create database",
-                    "status": "error"
-                }), 500
-            
-        except requests.exceptions.RequestException as e:
-            print(f"Error occured while making request to server {server_id} with hostname {hostname} to create database {schema}: {e}")
-            unsucessful_list.append(server_id)
+    unsuccesful_servers = initialize_servers(servers)
+
+    #initialize the shard_to_server and fast_server_assignment_map (Consistent Hashing Data Structures)
+    for shard in shard_data:
+        shard_id = shard['Shard_id']
+        shard_to_server[shard_id] = [None]*NUM_SLOTS
+        fast_server_assignment_map [shard_id] = deque()
     
-    if len(unsucessful_list)>0:
-        return jsonify({"message": "Failed to configure servers some server to create database", "status": "error","servers":unsucessful_list}), 206
-
-
-         
+    # put the servers into consistent hashing data structure of each shard
+    insert_data_into_chds(servers, unsuccesful_servers)
 
     # insert Data into ShardT Table (Stud id low: Number, Shard id: Number, Shard size:Number, valid idx:Number)
-    connection = sql_connection_pool.get_connection()
-    cursor = connection.cursor()
-    for shard in shards:
-        Stud_id_low, shard_size, shard_id = shard['Stud_id_low'], shard['Shard_size'], shard['Shard_id']
-        cursor.execute(f"INSERT INTO ShardT VALUES ({Stud_id_low}, {shard_id}, {shard_size}, 0)")
-    # insert Data into MapT table (Shard id: Number, Server id: Number)
-    for server_id in servers.keys():
-        corr_shards = servers[server_id]
-        for shard_id in corr_shards:
-            cursor.execute(f"INSERT INTO MapT VALUES ({shard_id}, {server_id})")
-    
-    cursor.close()
-    connection.close()
+    insert_data_into_shard_table(shards)
+
+    if len(unsuccesful_servers) > 0:
+        N-=len(unsuccesful_servers)
+        return jsonify({"message": "Couldn't spawn all servers successfully", "status": "error", "unsuccesful_servers": unsuccesful_servers}), 207
 
     return jsonify({"message": "Successfully configured all servers to create database", "status": "success"}), 200
    
@@ -206,6 +203,9 @@ def status():
 
 @app.route('/add', methods=['POST'])
 def add():
+    global N
+    global shard_data
+
     payload = request.json
 
     if 'n' not in payload or 'new_shards' not in payload or 'servers' not in payload:
@@ -214,11 +214,78 @@ def add():
             "status": "error"
         }), 400
 
-    schema, shards, servers = payload['schema'], payload['shards'], payload['servers']
+    n, new_shards, servers = payload['schema'], payload['shards'], payload['servers']
+
+    if n>len(servers):
+        return jsonify({
+            "message": "<Error> Number of new servers (n) is greater than newly added instances",
+            "status": "failure"
+        }), 400
+    
+    if n<len(servers):
+        return jsonify({
+            "message": "<Error> Number of new servers (n) is less than newly added instances",
+            "status": "failure"
+        }), 400
+    
+    shard_data.extend(new_shards)
+    # make sure all server id and shard id's are integer (Potential Bug: In copying the data structure)
+    temp_servers = servers.copy()
+    
+    for ss in servers.keys():
+        temp_servers[convert_to_server_id(ss)] = servers[ss]
+    
+    servers = temp_servers
+
+    # make request to each server to create the database
+    unsuccesful_servers = initialize_servers(servers)
+
+    # put the servers into consistent hashing data structure of each shard
+    insert_data_into_chds(servers, unsuccesful_servers)
+
+    # insert Data into ShardT Table (Stud id low: Number, Shard id: Number, Shard size:Number, valid idx:Number)
+    insert_data_into_shard_table(new_shards)
+
+    if len(unsuccesful_servers) > 0:
+        N-=len(unsuccesful_servers)
+        return jsonify({"message": "Couldn't spawn all servers successfully", "status": "error", "unsuccesful_servers": unsuccesful_servers}), 207
+
+    N+=n
+    return jsonify({"N":N,"message": generate_response_string(servers.keys()), "status": "successful"}), 200
+
 
 @app.route('/rm', methods=['DELETE'])
 def rm():
-    pass # TODO: Implement this method
+    global N
+    global shard_data
+    payload = request.json
+
+    if 'n' not in payload or 'servers' not in payload:
+        return jsonify({
+            "message": "Payload must contain 'n' and 'servers' keys",
+            "status": "error"
+        }), 400
+
+    n, servers = payload['n'], payload['servers']
+
+    if n>len(servers):
+        return jsonify({
+            "message": "<Error> Number of servers to remove (n) is greater than total instances",
+            "status": "failure"
+        }), 400
+    
+    if n<len(servers):
+        return jsonify({
+            "message": "<Error> Number of servers to remove (n) is less than total instances",
+            "status": "failure"
+        }), 400
+    
+    for server_id in servers:
+        remove_server(f"server{server_id}")
+        remove_data_of_server(server_id)
+    
+    N-=n
+    return jsonify({"N":N,"message": generate_response_string(servers), "status": "successful"}), 200
 
 @app.route('/read', methods=['POST'])
 def read():
@@ -260,7 +327,68 @@ def update():
 @app.route('/del', methods=['DELETE'])
 def delete():
     pass # TODO: Implement this method
+
+
+def generate_response_string(servers):
+    result = ""
+    for i, num in enumerate(servers):
+        result += f"Server: {num}"
+        if i < len(servers) - 1:
+            result += ", "
+        if i == len(servers) - 2:
+            result += "and "
+
+    return result
+
+
+def initialize_servers(servers):
+    global server_id_to_hostname
+
+    unsuccesful_servers = {}
+    for server_id in servers.keys():
+        hostname = f"server{server_id}"
+        server_id_to_hostname[server_id] = hostname
+        print(f"Making request to server {server_id} with hostname {hostname} to create database {SCHEMA}")
+        spawn_server(server_id, hostname, hostname)
+        if spawned_successfully(hostname, servers[server_id]):
+            add_data_of_server(server_id, hostname, servers[server_id])
+        else:
+            print(f"Couldn't spawn server {server_id} with hostname {hostname} ")
+            unsuccesful_servers[server_id] = servers[server_id]
+
+def insert_data_into_chds(servers, unsuccesful_servers):
+    global shard_to_server
+    global fast_server_assignment_map
+
+    for server_id in servers.keys():
+        if server_id not in unsuccesful_servers:
+            for shard_id in servers[server_id]:
+                pos = get_server_slot(server_id, shard_id)
+                shard_to_server[shard_id][pos] = server_id
+                bisect.insort_left(fast_server_assignment_map[shard_id],pos)
+
+def insert_data_into_shard_table(data):
+    # insert Data into ShardT Table (Stud id low: Number, Shard id: Number, Shard size:Number, valid idx:Number)
+    connection = sql_connection_pool.get_connection()
+    cursor = connection.cursor()
+    for shard in data:
+        Stud_id_low, shard_size, shard_id = shard['Stud_id_low'], shard['Shard_size'], shard['Shard_id']
+        cursor.execute(f"INSERT INTO ShardT VALUES ({Stud_id_low}, {shard_id}, {shard_size}, 0)")
     
+    cursor.close()
+    connection.close()
+
+def get_server_slot(server_id, shard_id):
+    global shard_to_server
+    temp  = (server_id*37)*(server_id+71)+ shard_id*47 + 293
+    slot = temp % NUM_SLOTS
+    while shard_to_server[slot] is not None:
+        slot = (slot+1)%NUM_SLOTS
+    return slot
+
+
+def convert_to_server_id(server_name):
+    return int(server_name[6:])
 
 def get_server_id():
     number = random.randint(100000, 999999)
