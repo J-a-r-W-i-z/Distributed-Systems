@@ -12,14 +12,20 @@ import requests
 
 app = Flask(__name__)
 sql_connection_pool = None
-MAX_RETRY = 1000
+MAX_RETRY = 100
+LIVENESS_SLEEP_TIME = 5
 server_id_to_hostname = dict()
 MAX_TIMEOUT = 10
 server_id_to_shard = dict()
 shard_data = []
 SCHEMA = None
+N = 0
 
 sih_lock = threading.Lock()
+sis_lock = threading.Lock()
+mapT_lock = threading.Lock()
+shardT_lock = threading.Lock()
+n_lock = threading.Lock()
 
 def connect_to_sql_server(max_pool_size=30, host='localhost', user='root', password='password', database='mydb'):
     global sql_connection_pool
@@ -218,9 +224,98 @@ def update():
 def delete():
     pass # TODO: Implement this method
 
-def spawn_server(id, name, hostname, port):
+def get_server_id():
+    number = random.randint(100000, 999999)
+    with sih_lock:
+        while number in server_id_to_hostname:
+            number = random.randint(100000, 999999)
+    return number
+
+def spawn_server(id, name, hostname):
         command = f"sudo docker run --network assignment2_myNetwork --name {name} --hostname {hostname} -e SERVER_ID={id} web-server"
         subprocess.Popen(command, shell=True)
+
+def spawned_successfully(hostname):
+    tries = 0
+    while True:
+        if tries > MAX_RETRY:
+            print("Max retry limit reached.\n Couldn't connect to Server\n ")
+            return False
+        try:
+            response = requests.get(f"http://{hostname}:5000/hearbeat")
+            if response.status_code == 200:
+                return True
+            else:
+                tries += 1
+                sleep(3)
+        except requests.exceptions.RequestException as e:
+            tries += 1
+            print(f"Error occured while making request to server {hostname} to check if spawned: {e}")
+            sleep(3)
+
+def add_data_of_server(server_id, hostname, shard_ids):
+    with sih_lock:
+        server_id_to_hostname[server_id] = hostname
+    with sis_lock:
+        server_id_to_shard[server_id] = shard_ids
+
+    connection = sql_connection_pool.get_connection()
+    cursor = connection.cursor()
+    with mapT_lock:
+        for shard_id in shard_ids:
+            cursor.execute(f"INSERT INTO MapT VALUES ({shard_id}, {server_id})")
+    cursor.close()
+    connection.close()
+
+def remove_data_of_server(server_id):
+    with sih_lock:
+        del server_id_to_hostname[server_id]
+    with sis_lock:
+        del server_id_to_shard[server_id]
+
+    connection = sql_connection_pool.get_connection()
+    cursor = connection.cursor()
+    with mapT_lock:
+        cursor.execute(f"DELETE FROM MapT WHERE Server_id={server_id}")
+    cursor.close()
+    connection.close()
+
+def liveness_checker():
+    while True:
+        sleep(LIVENESS_SLEEP_TIME)
+        with sih_lock:
+            sih_copy = server_id_to_hostname
+        for server_id, hostname in sih_copy.items():
+            try:
+                response = requests.get(f"http://{hostname}:5000/hearbeat")
+                if response.status_code != 200:
+                    print(f"Server {server_id} with hostname {hostname} is dead. Removing it from Load Balancer...")
+                    try:
+                        remove_server(f"server{server_id}")
+                        remove_data_of_server(server_id)
+                    except Exception as e:
+                        print(f"Server already deleted")
+            except requests.exceptions.RequestException as e:
+                print(f"Error occured while making request to server {server_id} to check if alive: {e}")
+                print(f"Removing it from Load Balancer...")
+                try:
+                    remove_server(f"server{server_id}")
+                    remove_data_of_server(server_id)
+                except Exception as e:
+                    print(f"Server already deleted")
+        
+        with n_lock, sih_lock:
+            num_servers_to_be_spawned = N - len(server_id_to_hostname)
+        
+        for i in range(num_servers_to_be_spawned):
+            server_id = get_server_id()
+            hostname = f"server{server_id}"
+            spawn_server(server_id, hostname)
+            if spawned_successfully(hostname):
+                add_data_of_server(server_id, hostname, [])
+            else:
+                print(f"Couldn't spawn server {server_id} with hostname {hostname}")
+
 
 def remove_server(container_name):
     os.system(f"sudo docker stop {container_name} && sudo docker rm {container_name}")
@@ -233,4 +328,6 @@ if __name__ == '__main__':
     for i in range(1,4):
         spawn_server(i, f"server{i}", f"server{i}", 5000+i)
         print(f"Server {i} created")
+    liveness_checker_thread = threading.Thread(target=liveness_checker)
+    liveness_checker_thread.start()
     app.run(debug=False, port=5000, host="0.0.0.0", threaded=True)
