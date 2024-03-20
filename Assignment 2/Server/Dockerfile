@@ -23,8 +23,5 @@ COPY . /app
 # Set the working directory in the container
 WORKDIR /app
 
-# Expose port for Flask
-EXPOSE 5000
-
 # Command to run the application
 CMD ["mysqld"]
