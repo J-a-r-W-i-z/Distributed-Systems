@@ -471,8 +471,19 @@ def read_thread_runner(shard_id,low, high):
         print(f"Exception occured while reading data from server {server_id}: {e}")
         
 
+def get_request_hash(request_id):
+    # Get hash of request_id
+    temp = (request_id*37)*(request_id+71)+ 47 + 293
+    return temp % 512
 def get_server_assignment(shard_id,request_id):
-    pass
+    hash = get_request_hash(request_id)
+    # get upper bound of hash in the fast access list
+    pos = bisect.bisect_left(fast_server_assignment_map[shard_id],hash)
+    if pos == len(fast_server_assignment_map[shard_id]):
+        pos = 0
+    return shard_to_server[shard_id][fast_server_assignment_map[shard_id][pos]]
+
+    
 
 def generate_response_string(servers):
     result = ""
