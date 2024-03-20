@@ -592,6 +592,19 @@ def get_servers_for_shards(shard_id):
     connection.close()
     return server_ids
 
+def get_shards_in_range(lo, hi):
+    # Declare a set
+    shards = set()
+    id = lo
+    while id<=hi:
+        shard_id = get_shard_id_from_stud_id(id)
+        shards.add(shard_id)
+        id+=shard_data[0]['Shard_size']
+    shard_id = get_shard_id_from_stud_id(hi)
+    shards.add(shard_id)
+    # Convert set to list
+    return list(shards)
+
 def liveness_checker():
     while True:
         sleep(LIVENESS_SLEEP_TIME)
