@@ -553,7 +553,7 @@ def get_server_slot(server_id, shard_id):
     global shard_to_server
     temp  = (server_id*37)*(server_id+71)+ shard_id*47 + 293
     slot = temp % NUM_SLOTS
-    while shard_to_server[slot] is not None:
+    while shard_to_server[shard_id][slot] is not None:
         slot = (slot+1)%NUM_SLOTS
     return slot
 
