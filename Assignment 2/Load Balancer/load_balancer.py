@@ -9,7 +9,6 @@ import copy
 import requests
 from time import sleep
 import threading
-import copy
 
 
 import requests
@@ -53,8 +52,9 @@ def connect_to_sql_server(max_pool_size=30, host='localhost', user='root', passw
     tries = 0
     while True:
         if tries > MAX_RETRY:
-            print(
-                "Max retry limit reached.\n Couldn't connect to MySql server\n Exiting...")
+            with open("log.txt", "a") as f:
+                f.write("Max retry limit reached.\n Couldn't connect to MySql server\n Exiting...")
+    
             exit(1)
         try:
             if flag:
@@ -155,8 +155,8 @@ def init():
         shard_data = shards
     with sis_lock:
         server_id_to_shard = servers
-
-    print(f"Schema: {schema}, Shards: {shards}, Servers: {servers}")
+    with open("log.txt", "a") as f:
+        f.write(f"Schema: {schema}, Shards: {shards}, Servers: {servers}")
 
     # make request to each server to create the database
     unsuccesful_servers = initialize_servers(servers)
@@ -363,9 +363,10 @@ def write():
                     hostname = server_id_to_hostname[server_id]
                 # Get valid_idx from ShardT table
                 connection = sql_connection_pool.get_connection()
+                
                 cursor = connection.cursor()
                 with shardT_lock:
-                    cursor.execute(f"SELECT Valid_idx FROM ShardT WHERE Shard_id={shard_id}")
+                    cursor.execute(f'SELECT Valid_idx FROM ShardT WHERE Shard_id={shard_id}')
                 valid_idx = cursor.fetchone()[0]
                 cursor.close()
                 connection.close()
@@ -382,7 +383,7 @@ def write():
                 connection = sql_connection_pool.get_connection()
                 cursor = connection.cursor()
                 with shardT_lock:
-                    cursor.execute(f"UPDATE ShardT SET Valid_idx = Valid_idx + 1 WHERE Shard_id={shard_id}")
+                    cursor.execute(f'UPDATE ShardT SET Valid_idx = Valid_idx + 1 WHERE Shard_id={shard_id}')
                 cursor.close()
                 connection.close()
                 
@@ -518,12 +519,14 @@ def initialize_servers(servers):
     unsuccesful_servers = {}
     for server_id in servers.keys():
         hostname = f"server{server_id}"
-        print(f"Making request to server {server_id} with hostname {hostname} to create database {SCHEMA}")
+        with open("log.txt", "a") as f:
+            f.write(f"Making request to server {server_id} with hostname {hostname} to create database {SCHEMA}")
         spawn_server(server_id, hostname, hostname)
         if spawned_successfully(hostname, servers[server_id]):
             add_data_of_server(server_id, hostname, servers[server_id])
         else:
-            print(f"Couldn't spawn server {server_id} with hostname {hostname} ")
+            with open("log.txt", "a") as f:
+                f.write(f"Couldn't spawn server {server_id} with hostname {hostname} ")
             unsuccesful_servers[server_id] = servers[server_id]
 
 def insert_data_into_chds(servers, unsuccesful_servers=[]):
@@ -586,8 +589,9 @@ def spawned_successfully(hostname, shard_ids):
     tries = 0
     while True:
         if tries > MAX_RETRY:
-            print("Max retry limit reached.\n Couldn't connect to Server\n ")
-            return False
+           with open("log.txt", "a") as f:
+            f.write("Max retry limit reached.\n Couldn't connect to Server\n ")
+           return False
         try:
             response = requests.get(f"http://{hostname}:5000/hearbeat")
             if response.status_code == 200:
@@ -599,7 +603,8 @@ def spawned_successfully(hostname, shard_ids):
                 sleep(3)
         except requests.exceptions.RequestException as e:
             tries += 1
-            print(f"Error occured while making request to server {hostname} to check if spawned: {e}")
+            with open("log.txt", "a") as f:
+                f.write(f"Error occured while making request to server {hostname} to check if spawned: {e}")
             sleep(3)
 
 def add_data_of_server(server_id, hostname, shard_ids):
