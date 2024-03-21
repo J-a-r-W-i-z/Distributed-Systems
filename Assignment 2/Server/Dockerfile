@@ -13,7 +13,7 @@ ENV MYSQL_PASSWORD=password
 RUN chmod 777 /docker-entrypoint-initdb.d/deploy.sh
 
 # Install Python and pip
-RUN apt-get update && apt-get install -y python3 python3-pip 
+RUN apt-get update && apt-get install -y python3 python3-pip curl
 RUN pip install flask --break-system-packages
 RUN pip install mysql-connector-python --break-system-packages
 

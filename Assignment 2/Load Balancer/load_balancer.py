@@ -102,7 +102,7 @@ def init():
     global shard_data
     global server_id_to_shard
     global N
-    global shard_to_server 
+    global shard_to_server
     global fast_server_assignment_map
 
     payload = request.json
@@ -141,7 +141,7 @@ def init():
         servers = payload['servers']
         # make sure all server id and shard id's are integer
         temp_servers = {}
-        
+
         for ss in servers.keys():
             temp_servers[convert_to_server_id(ss)] = [int(sh) for sh in servers[ss]]
 
@@ -170,10 +170,10 @@ def init():
             write_lock_list[shard_id] = threading.Lock()
             read_count_lock_list[shard_id] = threading.Lock()
             read_count[shard_id] = 0
-        
-    
 
-    
+
+
+
     # put the servers into consistent hashing data structure of each shard
     insert_data_into_chds(servers, unsuccesful_servers)
 
@@ -195,7 +195,7 @@ def status():
         total_servers = len(server_id_to_hostname)
     # unlock
 
-    response['N'] = total_servers 
+    response['N'] = total_servers
     response['schema'] = SCHEMA
     with shard_data_lock:
      response['shards'] = shard_data
@@ -225,7 +225,7 @@ def add():
             "message": "<Error> Number of new servers (n) is greater than newly added instances",
             "status": "failure"
         }), 400
-    
+
     if n<len(servers):
         return jsonify({
             "message": "<Error> Number of new servers (n) is less than newly added instances",
@@ -235,10 +235,10 @@ def add():
         shard_data.extend(new_shards)
     # make sure all server id and shard id's are integer (Potential Bug: In copying the data structure)
     temp_servers = {}
-    
+
     for ss in servers.keys():
         temp_servers[convert_to_server_id(ss)] = [int (sh) for sh in servers[ss]]
-    
+
     servers = temp_servers
 
 
@@ -287,20 +287,20 @@ def rm():
             "message": "<Error> Number of servers to remove (n) is greater than total instances",
             "status": "failure"
         }), 400
-    
+
     if n<len(servers_to_remove):
         return jsonify({
             "message": "<Error> Number of servers to remove (n) is less than total instances",
             "status": "failure"
         }), 400
-    
+
     temp_servers = []
     for ss in servers_to_remove:
         temp_servers.append(convert_to_server_id(ss))
     servers_to_remove = temp_servers
 
 
-    
+
     if n>len(servers_to_remove):
         # randomly choose total N servers to remove
         with sih_lock:
@@ -316,7 +316,7 @@ def rm():
         remove_server(f"server{server_id}")
         remove_data_of_server(server_id)
 
-    
+
     N-=n
     return jsonify({"N":N,"servers":[f"Server{ss}" for ss in servers_to_remove], "status": "successful"}), 200
 
@@ -344,7 +344,7 @@ def read():
         threads[i].start()
     for i in range(num_thread):
         threads[i].join()
-    
+
 
 @app.route('/write', methods=['POST'])
 def write():
@@ -385,9 +385,9 @@ def write():
                     cursor.execute(f"UPDATE ShardT SET Valid_idx = Valid_idx + 1 WHERE Shard_id={shard_id}")
                 cursor.close()
                 connection.close()
-                
+
     return jsonify({"message": f"{len(data)} Data entries added", "status": "success"}), 200
-            
+
 
 '''
 read and write locks
@@ -484,7 +484,7 @@ def read_thread_runner(shard_id,low, high):
             print(f"Error occured while reading data from server {server_id}")
     except requests.exceptions.RequestException as e:
         print(f"Exception occured while reading data from server {server_id}: {e}")
-        
+
 
 def get_request_hash(request_id):
     # Get hash of request_id
@@ -498,7 +498,7 @@ def get_server_assignment(shard_id,request_id):
         pos = 0
     return shard_to_server[shard_id][fast_server_assignment_map[shard_id][pos]]
 
-    
+
 
 def generate_response_string(servers):
     result = ""
@@ -521,6 +521,7 @@ def initialize_servers(servers):
         print(f"Making request to server {server_id} with hostname {hostname} to create database {SCHEMA}")
         spawn_server(server_id, hostname, hostname)
         if spawned_successfully(hostname, servers[server_id]):
+            print("Server spawned successfully")
             add_data_of_server(server_id, hostname, servers[server_id])
         else:
             print(f"Couldn't spawn server {server_id} with hostname {hostname} ")
@@ -589,7 +590,7 @@ def spawned_successfully(hostname, shard_ids):
             print("Max retry limit reached.\n Couldn't connect to Server\n ")
             return False
         try:
-            response = requests.get(f"http://{hostname}:5000/hearbeat")
+            response = requests.get(f"http://{hostname}:5000/heartbeat")
             if response.status_code == 200:
                 # Call config method on server
                 response = requests.post(f"http://{hostname}/config", json={"schema": SCHEMA, "shards": shard_ids})
@@ -630,8 +631,8 @@ def remove_data_of_server(server_id):
                     shard_to_server[shard_id][i] = None
                     fast_server_assignment_map[shard_id].remove(i)
 
-    # remove from the MapT table        
-        
+    # remove from the MapT table
+
     connection = sql_connection_pool.get_connection()
     cursor = connection.cursor()
     with mapT_lock:
@@ -683,7 +684,7 @@ def liveness_checker():
         shard_ids_for_new_servers = []      # List of lists
         for server_id, hostname in sih_copy.items():
             try:
-                response = requests.get(f"http://{hostname}:5000/hearbeat")
+                response = requests.get(f"http://{hostname}:5000/heartbeat")
                 if response.status_code != 200:
                     print(f"Server {server_id} with hostname {hostname} is dead. Removing it from Load Balancer...")
                     try:
@@ -707,7 +708,7 @@ def liveness_checker():
                     remove_data_of_server(server_id)
                 except Exception as e:
                     print(f"Server already deleted")
-        
+
         # Spawn new servers for shards of dead servers
         for i in range(len(shard_ids_for_new_servers)):
             server_id = get_server_id()
@@ -718,7 +719,7 @@ def liveness_checker():
                 insert_data_into_chds({server_id: shard_ids_for_new_servers[i]})
             else:
                 print(f"Couldn't spawn server {server_id} with hostname {hostname} successfully")
-            
+
             for shard_id in shard_ids_for_new_servers[i]:
                 source_server_id = get_server_for_shard(shard_id)
                 # Get data from source server using copy endpoint
