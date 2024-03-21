@@ -143,7 +143,7 @@ def init():
         temp_servers = {}
         
         for ss in servers.keys():
-            temp_servers[convert_to_server_id(ss)] = servers[ss]
+            temp_servers[convert_to_server_id(ss)] = [int(sh) for sh in servers[ss]]
 
         servers = temp_servers
 
@@ -234,10 +234,10 @@ def add():
     with shard_data_lock:
         shard_data.extend(new_shards)
     # make sure all server id and shard id's are integer (Potential Bug: In copying the data structure)
-    temp_servers = servers.copy()
+    temp_servers = {}
     
     for ss in servers.keys():
-        temp_servers[convert_to_server_id(ss)] = servers[ss]
+        temp_servers[convert_to_server_id(ss)] = [int (sh) for sh in servers[ss]]
     
     servers = temp_servers
 
