@@ -105,6 +105,11 @@ def config():
             cursor.execute(query)
             g.connection.commit()
 
+        return jsonify({
+            "message": f"Server0:{shards[0]}, Server0:{shards[1]} configured",
+            "status": "success"
+        }), 200
+
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({
@@ -113,11 +118,6 @@ def config():
         }), 500
     finally:
         cursor.close()
-
-    return jsonify({
-        "message": f"Server0:{shards[0]}, Server0:{shards[1]} configured",
-        "status": "success"
-    }), 200
 
 
 @app.route('/heartbeat', methods=['GET'])
