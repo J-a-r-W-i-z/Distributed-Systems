@@ -568,11 +568,16 @@ def insert_data_into_chds(servers, unsuccesful_servers=[]):
 
 def insert_data_into_shard_table(data):
     # insert Data into ShardT Table (Stud id low: Number, Shard id: Number, Shard size:Number, valid idx:Number)
+
     connection = sql_connection_pool.get_connection()
     cursor = connection.cursor()
     for shard in data:
         Stud_id_low, shard_size, shard_id = shard['Stud_id_low'], shard['Shard_size'], shard['Shard_id']
-        cursor.execute(f"INSERT INTO ShardT VALUES ({Stud_id_low}, {shard_id}, {shard_size}, 0)")
+        print(f"Insering data into ShardT table: Stud_id_low:{Stud_id_low}, shard_id:{shard_id}, shard_size:{shard_size}")
+        try:
+            cursor.execute(f"INSERT INTO ShardT VALUES ({Stud_id_low}, {shard_id}, {shard_size}, 0)")
+        except Exception as e:
+            print(f"Error occured while inserting data into ShardT table: {e}")
     cursor.close()
     connection.close()
 
