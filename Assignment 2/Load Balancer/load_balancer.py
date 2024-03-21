@@ -407,7 +407,7 @@ def write():
                 cursor = connection.cursor()
                 with shardT_lock:
                     cursor.execute(f'UPDATE ShardT SET Valid_idx = Valid_idx + 1 WHERE Shard_id={shard_id}')
-                    cursor.commit()
+                    connection.commit()
                 cursor.close()
                 connection.close()
 
@@ -576,8 +576,8 @@ def insert_data_into_shard_table(data):
         Stud_id_low, shard_size, shard_id = shard['Stud_id_low'], shard['Shard_size'], shard['Shard_id']
         print(f"Insering data into ShardT table: Stud_id_low:{Stud_id_low}, shard_id:{shard_id}, shard_size:{shard_size}")
         try:
-            cursor.execute(f"INSERT INTO ShardT VALUES ({Stud_id_low}, {shard_id}, {shard_size}, 0);")
-            cursor.commit()
+            cursor.execute(f"INSERT INTO ShardT VALUES ({Stud_id_low}, {shard_id}, {shard_size}, 0)")
+            connection.commit()
         except Exception as e:
             print(f"Error occured while inserting data into ShardT table: {e}")
     cursor.close()
@@ -647,7 +647,7 @@ def add_data_of_server(server_id, hostname, shard_ids):
     with mapT_lock:
         for shard_id in shard_ids:
             cursor.execute(f"INSERT INTO MapT VALUES ({shard_id}, {server_id});")
-            cursor.commit()
+            connection.commit()
 
     cursor.close()
     connection.close()
@@ -672,32 +672,26 @@ def remove_data_of_server(server_id):
     cursor = connection.cursor()
     with mapT_lock:
         cursor.execute(f"DELETE FROM MapT WHERE Server_id={server_id}")
-        cursor.commit()
+        connection.commit()
 
     cursor.close()
     connection.close()
 
 def get_server_for_shard(shard_id):
-    # TODO : Can update for faster access from RAM
-    connection = sql_connection_pool.get_connection()
-    cursor = connection.cursor()
-    with mapT_lock:
-        cursor.execute(f"SELECT Server_id FROM MapT WHERE Shard_id={shard_id}")
-    server_id = cursor.fetchone()[0]
-    cursor.close()
-    connection.close()
+    with fsa_lock,ss_lock:
+        server_id = shard_to_server[shard_id][fast_server_assignment_map[shard_id][0]]
+    
     return server_id
 
 def get_servers_for_shards(shard_id):
     # TODO : Can update for faster access from RAM
-    connection = sql_connection_pool.get_connection()
-    cursor = connection.cursor()
-    with mapT_lock:
-        cursor.execute(f"SELECT Server_id FROM MapT WHERE Shard_id={shard_id}")
-    server_ids = cursor.fetchall()
-    cursor.close()
-    connection.close()
-    return server_ids
+    server_ids = set()
+    with ss_lock:
+        for i in range(NUM_SLOTS):
+            if shard_to_server[shard_id][i] is not None:
+                server_ids.add(shard_to_server[shard_id][i])
+
+    return list(server_ids)
 
 def get_shards_in_range(lo, hi):
     # Declare a set
