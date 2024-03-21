@@ -1,1 +1,1 @@
-python3 load_balancer.py &
+python3 -u load_balancer.py &
