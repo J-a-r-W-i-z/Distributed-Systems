@@ -1,5 +1,6 @@
 import bisect
 from collections import deque
+import queue
 from flask import Flask, request, jsonify, Response
 import mysql.connector
 import os
@@ -149,6 +150,8 @@ def init():
         temp_shards = []
         for shard in shards:
             shard['Shard_id'] = int(shard['Shard_id'])
+            shard['Stud_id_low'] = int(shard['Stud_id_low'])
+            shard['Shard_size'] = int(shard['Shard_size'])
             temp_shards.append(shard)
         shards = temp_shards
 
@@ -247,7 +250,9 @@ def add():
 
     temp_shards = []
     for shard in new_shards:
-        shard['Shard_id'] = int(new_shards['Shard_id'])
+        shard['Shard_id'] = int(shard['Shard_id'])
+        shard['Stud_id_low'] = int(shard['Stud_id_low'])
+        shard['Shard_size'] = int(shard['Shard_size']) 
         temp_shards.append(shard)
     new_shards = temp_shards
 
@@ -349,11 +354,19 @@ def read():
     num_thread = len(shards)
     threads = []
     read_result = []
+    shared_queue = queue.Queue()
+    shared_queue_lock = threading.Lock()
+
     for i in range(num_thread):
-        threads.append(threading.Thread(target=read_thread_runner, args=(shards[i],low, high)))
+        threads.append(threading.Thread(target=read_thread_runner, args=(shards[i],low, high,shared_queue,shared_queue_lock)))
         threads[i].start()
     for i in range(num_thread):
         threads[i].join()
+    while not shared_queue.empty():
+        # Acquire the lock to safely access the shared queue
+        with shared_queue_lock:
+            data = shared_queue.get()
+        read_result.extend(data)
 
 
 @app.route('/write', methods=['POST'])
@@ -477,8 +490,7 @@ def delete():
 
 # Utility Functions
 
-def read_thread_runner(shard_id,low, high):
-    global read_result
+def read_thread_runner(shard_id,low, high,shared_queue,shared_queue_lock):
     # Get all servers where shard is present
     request_id = random.randint(100000, 999999)
     server_id = get_server_assignment(shard_id,request_id)
@@ -490,7 +502,8 @@ def read_thread_runner(shard_id,low, high):
         response = requests.get(f"http://{hostname}:5000/read", json={"shard": shard_id,"Stud_id": {"low": low, "high": high}})
         if response.status_code == 200:
             print(f"Data successfully read from server {server_id}")
-            read_result.extend(response.json()["data"])
+            with shared_queue_lock:
+                shared_queue.put(response.json()["data"])
         else:
             print(f"Error occured while reading data from server {server_id}")
     except requests.exceptions.RequestException as e:
