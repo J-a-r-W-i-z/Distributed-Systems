@@ -505,9 +505,7 @@ def initialize_servers(servers):
     unsuccesful_servers = {}
     for server_id in servers.keys():
         hostname = f"server{server_id}"
-        server_id_to_hostname[server_id] = hostname
-        print(
-            f"Making request to server {server_id} with hostname {hostname} to create database {SCHEMA}")
+        print(f"Making request to server {server_id} with hostname {hostname} to create database {SCHEMA}")
         spawn_server(server_id, hostname, hostname)
         if spawned_successfully(hostname, servers[server_id]):
             add_data_of_server(server_id, hostname, servers[server_id])
