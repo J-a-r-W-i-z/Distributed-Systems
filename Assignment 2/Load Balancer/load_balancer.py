@@ -148,8 +148,6 @@ def init():
         servers = temp_servers
 
 
-
-
     SCHEMA = schema
     with shard_data_lock:
         shard_data = shards
@@ -529,6 +527,8 @@ def initialize_servers(servers):
             with open("log.txt", "a") as f:
                 f.write(f"Couldn't spawn server {server_id} with hostname {hostname} ")
             unsuccesful_servers[server_id] = servers[server_id]
+    
+    return unsuccesful_servers
 
 def insert_data_into_chds(servers, unsuccesful_servers=[]):
     global shard_to_server
