@@ -87,25 +87,6 @@ def initialize_metadata_tables():
 def index():
     data = "Hello, World!"
     return jsonify(data)
-@app.route('/<user_path>', methods=['GET'])
-def index(user_path):
-    response = requests.get(f"http://server1:5000/{user_path}")
-    filtered_headers = {key: value for key, value in response.headers.items()
-                        if key.lower() in ['content-type', 'content-length', 'connection', 'date']}
-    
-    return Response(response.content, status=response.status_code, headers=filtered_headers)
-
-@app.route('/test', methods=['GET'])
-def gett():
-    connection = sql_connection_pool.get_connection()
-    cursor = connection.cursor()
-    cursor.execute("SELECT user FROM mysql.user;")
-    rows = cursor.fetchall()
-    for row in rows:
-        print(row)
-    cursor.close()
-    connection.close()
-    return jsonify("Success")
 
 @app.route('/init', methods=['POST'])
 def init():
@@ -579,7 +560,7 @@ def liveness_checker():
     while True:
         sleep(LIVENESS_SLEEP_TIME)
         with sih_lock:
-            sih_copy = server_id_to_hostname
+            sih_copy = server_id_to_hostname.deepcopy()
 
         shard_ids_for_new_servers = []      # List of lists
         for server_id, hostname in sih_copy.items():
