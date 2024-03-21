@@ -166,7 +166,7 @@ def init():
             temp_shards.append(shard)
         shards = temp_shards
 
-            
+
 
 
     SCHEMA = schema
@@ -273,7 +273,7 @@ def add():
     for shard in new_shards:
         shard['Shard_id'] = int(shard['Shard_id'])
         shard['Stud_id_low'] = int(shard['Stud_id_low'])
-        shard['Shard_size'] = int(shard['Shard_size']) 
+        shard['Shard_size'] = int(shard['Shard_size'])
         temp_shards.append(shard)
     new_shards = temp_shards
 
@@ -390,7 +390,7 @@ def read():
         with shared_queue_lock:
             data = shared_queue.get()
         read_result.extend(data)
-    
+
     return jsonify({"shards_queried": shards,"data": read_result,"status":"success"}), 200
 
 
@@ -486,7 +486,7 @@ def update():
                     # print(f"Error occured while writing data to server {server_id}")
             except requests.exceptions.RequestException as e:
                 return jsonify({"message": f"Exception occured while writing data to server {server_id}: {e}", "status": "error"}), 400
-                
+
     return jsonify({"message": f"Data entry for Stud_id:{payload['Stud_id']} updated", "status": "success"}), 200
 
 
@@ -511,7 +511,7 @@ def delete():
                     return jsonify({"message": f"Error occured while writing data to server {server_id}", "status": "error"}), 400
             except requests.exceptions.RequestException as e:
                 return jsonify({"message": f"Exception occured while writing data to server {server_id}: {e}", "status": "error"}), 400
-                
+
     return jsonify({"message": f"Data entry with Stud_id:{payload['Stud_id']} removed", "status": "success"}), 200
 
 
@@ -578,7 +578,7 @@ def initialize_servers(servers):
         else:
             print(f"Couldn't spawn server {server_id} with hostname {hostname} ")
             unsuccesful_servers[server_id] = servers[server_id]
-    
+
     return unsuccesful_servers
 
 def insert_data_into_chds(servers, unsuccesful_servers=[]):
@@ -706,7 +706,7 @@ def remove_data_of_server(server_id):
 def get_server_for_shard(shard_id):
     with fsa_lock,ss_lock:
         server_id = shard_to_server[shard_id][fast_server_assignment_map[shard_id][0]]
-    
+
     return server_id
 
 def get_servers_for_shards(shard_id):
@@ -784,9 +784,11 @@ def liveness_checker():
                     source_hostname = server_id_to_hostname[source_server_id]
                 try:
                     response = requests.get(f"http://{source_hostname}:5000/copy", json={"shards": [shard_id]})
+                    if response.status_code !=200:
+                        print(response.json())
                     # Get response data
                     data = response.json()
-                    list_of_entires = data[shard_id]
+                    list_of_entires = data[str(shard_id)]
                     # Get valid_idx from ShardT table
                     connection = sql_connection_pool.get_connection()
                     cursor = connection.cursor()

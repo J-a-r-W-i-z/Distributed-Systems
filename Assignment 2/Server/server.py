@@ -97,11 +97,12 @@ def config():
     try:
         cursor = g.connection.cursor()
         for shard in shards:
-            query = f"CREATE TABLE IF NOT EXISTS {shard} (\
+            query = f"CREATE TABLE IF NOT EXISTS `{shard}` (\
                         {columns[0]} {map_dtype_to_sql(dtypes[0])} PRIMARY KEY,\
                         {columns[1]} {map_dtype_to_sql(dtypes[1])},\
                         {columns[2]} {map_dtype_to_sql(dtypes[2])}\
                     )"
+            print(query)
             cursor.execute(query)
             g.connection.commit()
 
@@ -141,12 +142,21 @@ def copy():
         cursor = g.connection.cursor()
 
         response = {}
+        print("shards:", shards)
         for shard in shards:
-            query = f"SELECT * FROM {shard}"
+            print("shard: ", shard)
+            query = f"SELECT * FROM `{shard}`"
+            print("test0")
             cursor.execute(query)
-            response[shard] = list_to_colmap(cursor)
+            print("test1")
+            response[str(shard)] = list_to_colmap(cursor)
+            print("test2")
+
+        print("endo of looping")
 
         response['status'] = 'success'
+
+        print("returning response")
         return jsonify(response), 200
     except Exception as e:
         print(f"Error: {e}")
@@ -181,7 +191,7 @@ def read():
     try:
         cursor = g.connection.cursor()
 
-        query = f"SELECT * FROM {shard} WHERE Stud_id BETWEEN {low_id} AND {high_id}"
+        query = f"SELECT * FROM `{shard}` WHERE Stud_id BETWEEN {low_id} AND {high_id}"
         cursor.execute(query)
         response = {"data": list_to_colmap(cursor), "status": "success"}
         return jsonify(response), 200
@@ -210,7 +220,7 @@ def write():
     try:
         cursor = g.connection.cursor()
 
-        cursor.execute(f"SELECT Stud_id FROM {shard}")
+        cursor.execute(f"SELECT Stud_id FROM `{shard}`")
         existing_ids = {row[0] for row in cursor.fetchall()}
 
         filtered_data = [
@@ -219,7 +229,7 @@ def write():
         for entry in filtered_data:
             columns = ', '.join(entry.keys())
             values = ', '.join(f"'{value}'" for value in entry.values())
-            query = f"INSERT INTO {shard} ({columns}) VALUES ({values})"
+            query = f"INSERT INTO `{shard}` ({columns}) VALUES ({values})"
             cursor.execute(query)
 
         new_idx = curr_idx + len(filtered_data)
@@ -261,7 +271,7 @@ def update():
     try:
         cursor = g.connection.cursor()
 
-        cursor.execute(f"SELECT * FROM {shard} WHERE Stud_id = {stud_id}")
+        cursor.execute(f"SELECT * FROM `{shard}` WHERE Stud_id = {stud_id}")
         if not cursor.fetchone():
             return jsonify({
                 "message": f"Data entry for Stud_id:{stud_id} not found",
@@ -270,7 +280,7 @@ def update():
 
         update_columns = ', '.join(
             [f"{key} = '{value}'" for key, value in data.items()])
-        query = f"UPDATE {shard} SET {update_columns} WHERE Stud_id = {stud_id}"
+        query = f"UPDATE `{shard}` SET {update_columns} WHERE Stud_id = {stud_id}"
         cursor.execute(query)
         g.connection.commit()
 
@@ -303,14 +313,14 @@ def delete():
     try:
         cursor = g.connection.cursor()
 
-        cursor.execute(f"SELECT * FROM {shard} WHERE Stud_id = {stud_id}")
+        cursor.execute(f"SELECT * FROM `{shard}` WHERE Stud_id = {stud_id}")
         if not cursor.fetchone():
             return jsonify({
                 "message": f"Data entry for Stud_id:{stud_id} not found",
                 "status": "error"
             }), 404
 
-        query = f"DELETE FROM {shard} WHERE Stud_id = {stud_id}"
+        query = f"DELETE FROM `{shard}` WHERE Stud_id = {stud_id}"
         cursor.execute(query)
         g.connection.commit()
 
