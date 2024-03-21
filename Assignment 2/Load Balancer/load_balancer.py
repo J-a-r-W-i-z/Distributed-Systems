@@ -398,10 +398,10 @@ def write():
                     if response.status_code == 200:
                         print(f"Data successfully written to server {server_id}")
                     else:
-                        print(f"Error occured while writing data to server {server_id}")
+                        return jsonify({"message": f"Error occured while writing data to server {server_id}", "status": "error"}), 400
+                        # print(f"Error occured while writing data to server {server_id}")
                 except requests.exceptions.RequestException as e:
-                    print(f"Exception occured while writing data to server {server_id}: {e}")
-                    continue
+                    return jsonify({"message": f"Exception occured while writing data to server {server_id}: {e}", "status": "error"}), 400
                 # Update vaild_idx in ShardT table
                 connection = sql_connection_pool.get_connection()
                 cursor = connection.cursor()
@@ -456,10 +456,11 @@ def update():
                 if response.status_code == 200:
                     print(f"Data successfully written to server {server_id}")
                 else:
-                    print(f"Error occured while writing data to server {server_id}")
+                    return jsonify({"message": f"Error occured while writing data to server {server_id}", "status": "error"}), 400
+                    # print(f"Error occured while writing data to server {server_id}")
             except requests.exceptions.RequestException as e:
-                print(f"Exception occured while writing data to server {server_id}: {e}")
-                continue
+                return jsonify({"message": f"Exception occured while writing data to server {server_id}: {e}", "status": "error"}), 400
+                
     return jsonify({"message": f"Data entry for Stud_id:{payload['Stud_id']} updated", "status": "success"}), 200
 
 
@@ -481,10 +482,10 @@ def delete():
                 if response.status_code == 200:
                     print(f"Data successfully written to server {server_id}")
                 else:
-                    print(f"Error occured while writing data to server {server_id}")
+                    return jsonify({"message": f"Error occured while writing data to server {server_id}", "status": "error"}), 400
             except requests.exceptions.RequestException as e:
-                print(f"Exception occured while writing data to server {server_id}: {e}")
-                continue
+                return jsonify({"message": f"Exception occured while writing data to server {server_id}: {e}", "status": "error"}), 400
+                
     return jsonify({"message": f"Data entry with Stud_id:{payload['Stud_id']} removed", "status": "success"}), 200
 
 
@@ -500,7 +501,7 @@ def read_thread_runner(shard_id,low, high,shared_queue,shared_queue_lock):
         hostname = server_id_to_hostname[server_id]
     try:
         # Send get request to server to read the data
-        response = requests.get(f"http://{hostname}:5000/read", json={"shard": shard_id,"Stud_id": {"low": low, "high": high}})
+        response = requests.post(f"http://{hostname}:5000/read", json={"shard": shard_id,"Stud_id": {"low": low, "high": high}})
         if response.status_code == 200:
             print(f"Data successfully read from server {server_id}")
             with shared_queue_lock:
