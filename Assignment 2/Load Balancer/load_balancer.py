@@ -575,7 +575,7 @@ def insert_data_into_shard_table(data):
         Stud_id_low, shard_size, shard_id = shard['Stud_id_low'], shard['Shard_size'], shard['Shard_id']
         print(f"Insering data into ShardT table: Stud_id_low:{Stud_id_low}, shard_id:{shard_id}, shard_size:{shard_size}")
         try:
-            cursor.execute(f"INSERT INTO ShardT VALUES ({Stud_id_low}, {shard_id}, {shard_size}, 0)")
+            cursor.execute(f"INSERT INTO ShardT VALUES ({Stud_id_low}, {shard_id}, {shard_size}, 0);")
         except Exception as e:
             print(f"Error occured while inserting data into ShardT table: {e}")
     cursor.close()
@@ -644,7 +644,7 @@ def add_data_of_server(server_id, hostname, shard_ids):
     cursor = connection.cursor()
     with mapT_lock:
         for shard_id in shard_ids:
-            cursor.execute(f"INSERT INTO MapT VALUES ({shard_id}, {server_id})")
+            cursor.execute(f"INSERT INTO MapT VALUES ({shard_id}, {server_id});")
     cursor.close()
     connection.close()
 
