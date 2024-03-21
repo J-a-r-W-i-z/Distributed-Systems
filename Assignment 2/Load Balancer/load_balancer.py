@@ -8,8 +8,6 @@ import random
 import requests
 from time import sleep
 import threading
-
-
 import requests
 
 app = Flask(__name__)
@@ -37,6 +35,8 @@ sis_lock = threading.Lock()
 mapT_lock = threading.Lock()
 shardT_lock = threading.Lock()
 n_lock = threading.Lock()
+ss_lock,fsa_lock = threading.Lock(),threading.Lock()
+shard_data_lock = threading.Lock()
 write_lock_list = {}
 read_count_lock_list = {}
 
@@ -116,6 +116,7 @@ def init():
     global N
     global shard_to_server 
     global fast_server_assignment_map
+
     payload = request.json
 
     if 'N' not in payload or 'shards' not in payload or 'schema' not in payload :
@@ -160,8 +161,10 @@ def init():
 
 
     SCHEMA = schema
-    shard_data = shards 
-    server_id_to_shard = servers
+    with shard_data_lock:
+        shard_data = shards
+    with sis_lock:
+        server_id_to_shard = servers
 
     print(f"Schema: {schema}, Shards: {shards}, Servers: {servers}")
 
@@ -169,10 +172,17 @@ def init():
     unsuccesful_servers = initialize_servers(servers)
 
     #initialize the shard_to_server and fast_server_assignment_map (Consistent Hashing Data Structures)
-    for shard in shard_data:
-        shard_id = shard['Shard_id']
-        shard_to_server[shard_id] = [None]*NUM_SLOTS
-        fast_server_assignment_map [shard_id] = deque()
+    with shard_data_lock:
+        for shard in shard_data:
+            shard_id = shard['Shard_id']
+            shard_to_server[shard_id] = [None]*NUM_SLOTS
+            fast_server_assignment_map [shard_id] = deque()
+            write_lock_list[shard_id] = threading.Lock()
+            read_count_lock_list[shard_id] = threading.Lock()
+            read_count[shard_id] = 0
+        
+    
+
     
     # put the servers into consistent hashing data structure of each shard
     insert_data_into_chds(servers, unsuccesful_servers)
@@ -196,8 +206,10 @@ def status():
 
     response['N'] = total_servers 
     response['schema'] = SCHEMA
-    response['shards'] = shard_data
-    response['servers'] = server_id_to_shard
+    with shard_data_lock:
+     response['shards'] = shard_data
+    with sis_lock:
+        response['servers'] = server_id_to_shard
 
     return jsonify(response), 200
 
@@ -228,8 +240,8 @@ def add():
             "message": "<Error> Number of new servers (n) is less than newly added instances",
             "status": "failure"
         }), 400
-    
-    shard_data.extend(new_shards)
+    with shard_data_lock:
+        shard_data.extend(new_shards)
     # make sure all server id and shard id's are integer (Potential Bug: In copying the data structure)
     temp_servers = servers.copy()
     
@@ -240,6 +252,16 @@ def add():
 
     # make request to each server to create the database
     unsuccesful_servers = initialize_servers(servers)
+
+    #initialize the shard_to_server and fast_server_assignment_map (Consistent Hashing Data Structures)
+
+    for shard in new_shards:
+        shard_id = shard['Shard_id']
+        shard_to_server[shard_id] = [None]*NUM_SLOTS
+        fast_server_assignment_map [shard_id] = deque()
+        write_lock_list[shard_id] = threading.Lock()
+        read_count_lock_list[shard_id] = threading.Lock()
+        read_count[shard_id] = 0
 
     # put the servers into consistent hashing data structure of each shard
     insert_data_into_chds(servers, unsuccesful_servers)
@@ -289,7 +311,8 @@ def rm():
     
     if n>len(servers_to_remove):
         # randomly choose total N servers to remove
-        server_ids = list(server_id_to_hostname.keys())
+        with sih_lock:
+            server_ids = list(server_id_to_hostname.keys())
         for ser in servers_to_remove:
             server_ids.remove(ser)
         while len(server_ids) !=n:
@@ -502,8 +525,7 @@ def initialize_servers(servers):
 
     unsuccesful_servers = {}
     for server_id in servers.keys():
-        hostname = f"server{server_id}"
-        server_id_to_hostname[server_id] = hostname
+        hostname = f"server{server_id}
         print(f"Making request to server {server_id} with hostname {hostname} to create database {SCHEMA}")
         spawn_server(server_id, hostname, hostname)
         if spawned_successfully(hostname, servers[server_id]):
@@ -606,16 +628,15 @@ def remove_data_of_server(server_id):
     # remove data from server_id_to_hostname and server_id_to_shard
     with sih_lock:
         del server_id_to_hostname[server_id]
-    with sis_lock:
+    with sis_lock,ss_lock,fsa_lock:
         del server_id_to_shard[server_id]
 
-    # remove data from consistent hashing data structures
-    for shard_id in server_id_to_shard[server_id]:
-
-        for i in range(NUM_SLOTS):
-            if shard_to_server[shard_id][i] == server_id:
-                shard_to_server[shard_id][i] = None
-                fast_server_assignment_map[shard_id].remove(i)
+        # remove data from consistent hashing data structures
+        for shard_id in server_id_to_shard[server_id]:
+            for i in range(NUM_SLOTS):
+                if shard_to_server[shard_id][i] == server_id:
+                    shard_to_server[shard_id][i] = None
+                    fast_server_assignment_map[shard_id].remove(i)
 
     # remove from the MapT table        
         
