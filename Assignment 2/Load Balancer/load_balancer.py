@@ -52,9 +52,8 @@ def connect_to_sql_server(max_pool_size=30, host='localhost', user='root', passw
     tries = 0
     while True:
         if tries > MAX_RETRY:
-            with open("log.txt", "a") as f:
-                f.write("Max retry limit reached.\n Couldn't connect to MySql server\n Exiting...")
-    
+            print("Max retry limit reached.\n Couldn't connect to MySql server\n Exiting...")
+
             exit(1)
         try:
             if flag:
@@ -155,8 +154,7 @@ def init():
         shard_data = shards
     with sis_lock:
         server_id_to_shard = servers
-    with open("log.txt", "a") as f:
-        f.write(f"Schema: {schema}, Shards: {shards}, Servers: {servers}")
+        print(f"Schema: {schema}, Shards: {shards}, Servers: {servers}")
 
     # make request to each server to create the database
     unsuccesful_servers = initialize_servers(servers)
@@ -363,7 +361,7 @@ def write():
                     hostname = server_id_to_hostname[server_id]
                 # Get valid_idx from ShardT table
                 connection = sql_connection_pool.get_connection()
-                
+
                 cursor = connection.cursor()
                 with shardT_lock:
                     cursor.execute(f'SELECT Valid_idx FROM ShardT WHERE Shard_id={shard_id}')
@@ -371,7 +369,7 @@ def write():
                 cursor.close()
                 connection.close()
                 try:
-                    response = requests.post(f"http://{hostname}/write", json={"shard": shard_id, "curr_idx": valid_idx, "data": [entry]})
+                    response = requests.post(f"http://{hostname}:5000/write", json={"shard": shard_id, "curr_idx": valid_idx, "data": [entry]})
                     if response.status_code == 200:
                         print(f"Data successfully written to server {server_id}")
                     else:
@@ -428,7 +426,7 @@ def update():
                 hostname = server_id_to_hostname[server_id]
             try:
                 # Send put request to server to update the data
-                response = requests.put(f"http://{hostname}/update", json={"shard": shard_id, "Stud_id": payload['Stud_id'], "data": data})
+                response = requests.put(f"http://{hostname}:5000/update", json={"shard": shard_id, "Stud_id": payload['Stud_id'], "data": data})
                 if response.status_code == 200:
                     print(f"Data successfully written to server {server_id}")
                 else:
@@ -453,7 +451,7 @@ def delete():
                 hostname = server_id_to_hostname[server_id]
             try:
                 # Send del request to server to delete the data
-                response = requests.delete(f"http://{hostname}/del", json={"shard": shard_id, "Stud_id": payload['Stud_id']})
+                response = requests.delete(f"http://{hostname}:5000/del", json={"shard": shard_id, "Stud_id": payload['Stud_id']})
                 if response.status_code == 200:
                     print(f"Data successfully written to server {server_id}")
                 else:
@@ -477,7 +475,7 @@ def read_thread_runner(shard_id,low, high):
         hostname = server_id_to_hostname[server_id]
     try:
         # Send get request to server to read the data
-        response = requests.get(f"http://{hostname}/read", json={"shard": shard_id,"Stud_id": {"low": low, "high": high}})
+        response = requests.get(f"http://{hostname}:5000/read", json={"shard": shard_id,"Stud_id": {"low": low, "high": high}})
         if response.status_code == 200:
             print(f"Data successfully read from server {server_id}")
             read_result.extend(response.json()["data"])
@@ -519,15 +517,13 @@ def initialize_servers(servers):
     unsuccesful_servers = {}
     for server_id in servers.keys():
         hostname = f"server{server_id}"
-        with open("log.txt", "a") as f:
-            f.write(f"Making request to server {server_id} with hostname {hostname} to create database {SCHEMA}")
+        print(f"Making request to server {server_id} with hostname {hostname} to create database {SCHEMA}")
         spawn_server(server_id, hostname, hostname)
         if spawned_successfully(hostname, servers[server_id]):
             print("Server spawned successfully")
             add_data_of_server(server_id, hostname, servers[server_id])
         else:
-            with open("log.txt", "a") as f:
-                f.write(f"Couldn't spawn server {server_id} with hostname {hostname} ")
+            print(f"Couldn't spawn server {server_id} with hostname {hostname} ")
             unsuccesful_servers[server_id] = servers[server_id]
 
 def insert_data_into_chds(servers, unsuccesful_servers=[]):
@@ -590,22 +586,20 @@ def spawned_successfully(hostname, shard_ids):
     tries = 0
     while True:
         if tries > MAX_RETRY:
-           with open("log.txt", "a") as f:
-            f.write("Max retry limit reached.\n Couldn't connect to Server\n ")
-           return False
+            print("Max retry limit reached.\n Couldn't connect to Server\n ")
+            return False
         try:
             response = requests.get(f"http://{hostname}:5000/heartbeat")
             if response.status_code == 200:
                 # Call config method on server
-                response = requests.post(f"http://{hostname}/config", json={"schema": SCHEMA, "shards": shard_ids})
+                response = requests.post(f"http://{hostname}:5000/config", json={"schema": SCHEMA, "shards": shard_ids})
                 return True
             else:
                 tries += 1
                 sleep(3)
         except requests.exceptions.RequestException as e:
             tries += 1
-            with open("log.txt", "a") as f:
-                f.write(f"Error occured while making request to server {hostname} to check if spawned: {e}")
+            print(f"Error occured while making request to server {hostname} to check if spawned: {e}")
             sleep(3)
 
 def add_data_of_server(server_id, hostname, shard_ids):
@@ -731,7 +725,7 @@ def liveness_checker():
                 with sih_lock:
                     source_hostname = server_id_to_hostname[source_server_id]
                 try:
-                    response = requests.get(f"http://{source_hostname}/copy", json={"shards": [shard_id]})
+                    response = requests.get(f"http://{source_hostname}:5000/copy", json={"shards": [shard_id]})
                     # Get response data
                     data = response.json()
                     list_of_entires = data[shard_id]
@@ -744,7 +738,7 @@ def liveness_checker():
                     cursor.close()
                     connection.close()
                     # Insert data into new server using write endpoint
-                    response = requests.post(f"http://{hostname}/write", json={"shard": shard_id, "curr_idx": valid_idx, "data": list_of_entires})
+                    response = requests.post(f"http://{hostname}:5000/write", json={"shard": shard_id, "curr_idx": valid_idx, "data": list_of_entires})
                     if response.status_code == 200:
                         print(f"Data successfully copied from server {source_server_id} to server {server_id}")
                     else:
