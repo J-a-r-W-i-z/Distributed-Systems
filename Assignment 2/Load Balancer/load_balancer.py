@@ -407,6 +407,7 @@ def write():
                 cursor = connection.cursor()
                 with shardT_lock:
                     cursor.execute(f'UPDATE ShardT SET Valid_idx = Valid_idx + 1 WHERE Shard_id={shard_id}')
+                    cursor.commit()
                 cursor.close()
                 connection.close()
 
@@ -576,6 +577,7 @@ def insert_data_into_shard_table(data):
         print(f"Insering data into ShardT table: Stud_id_low:{Stud_id_low}, shard_id:{shard_id}, shard_size:{shard_size}")
         try:
             cursor.execute(f"INSERT INTO ShardT VALUES ({Stud_id_low}, {shard_id}, {shard_size}, 0);")
+            cursor.commit()
         except Exception as e:
             print(f"Error occured while inserting data into ShardT table: {e}")
     cursor.close()
@@ -645,6 +647,8 @@ def add_data_of_server(server_id, hostname, shard_ids):
     with mapT_lock:
         for shard_id in shard_ids:
             cursor.execute(f"INSERT INTO MapT VALUES ({shard_id}, {server_id});")
+            cursor.commit()
+
     cursor.close()
     connection.close()
 
@@ -668,6 +672,8 @@ def remove_data_of_server(server_id):
     cursor = connection.cursor()
     with mapT_lock:
         cursor.execute(f"DELETE FROM MapT WHERE Server_id={server_id}")
+        cursor.commit()
+
     cursor.close()
     connection.close()
 
