@@ -146,6 +146,14 @@ def init():
 
         servers = temp_servers
 
+        temp_shards = []
+        for shard in shards:
+            shard['Shard_id'] = int(shard['Shard_id'])
+            temp_shards.append(shard)
+        shards = temp_shards
+
+            
+
 
     SCHEMA = schema
     with shard_data_lock:
@@ -236,6 +244,12 @@ def add():
         temp_servers[convert_to_server_id(ss)] = [int (sh) for sh in servers[ss]]
 
     servers = temp_servers
+
+    temp_shards = []
+    for shard in new_shards:
+        shard['Shard_id'] = int(new_shards['Shard_id'])
+        temp_shards.append(shard)
+    new_shards = temp_shards
 
 
     # make request to each server to create the database
