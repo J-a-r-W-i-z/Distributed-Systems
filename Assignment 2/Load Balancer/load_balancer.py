@@ -141,9 +141,20 @@ def init():
         servers = payload['servers']
         # make sure all server id and shard id's are integer
         temp_servers = {}
-
+        unique_server_ids = set()
         for ss in servers.keys():
+            if not all(char.isdigit() for char in ss[6:]):
+                continue
             temp_servers[convert_to_server_id(ss)] = [int(sh) for sh in servers[ss]]
+            unique_server_ids.add(convert_to_server_id(ss))
+        
+        for ss in servers.keys():
+            if not all(char.isdigit() for char in ss[6:]):
+                random_server_id = random.randint(100000, 999999)
+                while random_server_id in unique_server_ids:
+                    random_server_id = random.randint(100000, 999999)
+                temp_servers[random_server_id] = [int(sh) for sh in servers[ss]]
+                unique_server_ids.add(random_server_id)
 
         servers = temp_servers
 
@@ -238,15 +249,25 @@ def add():
             "message": "<Error> Number of new servers (n) is less than newly added instances",
             "status": "failure"
         }), 400
-    with shard_data_lock:
-        shard_data.extend(new_shards)
+    
     # make sure all server id and shard id's are integer (Potential Bug: In copying the data structure)
+    existing_servers = set(server_id_to_hostname.keys())
     temp_servers = {}
-
+    unique_server_ids = set()
     for ss in servers.keys():
-        temp_servers[convert_to_server_id(ss)] = [int (sh) for sh in servers[ss]]
+        if not all(char.isdigit() for char in ss[6:]):
+            continue
+        temp_servers[convert_to_server_id(ss)] = [int(sh) for sh in servers[ss]]
+        unique_server_ids.add(convert_to_server_id(ss))
+    for ss in servers.keys():
+        if not all(char.isdigit() for char in ss[6:]):
+            random_server_id = random.randint(100000, 999999)
+            while random_server_id in unique_server_ids or random_server_id in existing_servers :
+                random_server_id = random.randint(100000, 999999)
+            temp_servers[random_server_id] = [int(sh) for sh in servers[ss]]
+            unique_server_ids.add(random_server_id)
 
-    servers = temp_servers
+        servers = temp_servers
 
     temp_shards = []
     for shard in new_shards:
@@ -259,6 +280,8 @@ def add():
 
     # make request to each server to create the database
     unsuccesful_servers = initialize_servers(servers)
+    with shard_data_lock:
+        shard_data.extend(new_shards)
 
     #initialize the shard_to_server and fast_server_assignment_map (Consistent Hashing Data Structures)
 
@@ -661,8 +684,6 @@ def remove_data_of_server(server_id):
     with sih_lock:
         del server_id_to_hostname[server_id]
     with sis_lock,ss_lock,fsa_lock:
-        del server_id_to_shard[server_id]
-
         # remove data from consistent hashing data structures
         for shard_id in server_id_to_shard[server_id]:
             for i in range(NUM_SLOTS):
@@ -670,6 +691,7 @@ def remove_data_of_server(server_id):
                     shard_to_server[shard_id][i] = None
                     fast_server_assignment_map[shard_id].remove(i)
 
+        del server_id_to_shard[server_id]
     # remove from the MapT table
 
     connection = sql_connection_pool.get_connection()
