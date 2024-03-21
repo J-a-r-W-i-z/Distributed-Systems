@@ -5,6 +5,7 @@ import mysql.connector
 import os
 import subprocess
 import random
+import copy
 import requests
 from time import sleep
 import threading
@@ -131,14 +132,15 @@ def init():
         
     else:
         servers = payload['servers']
-        # make sure all server id and shard id's are integer (Potential Bug: In copying the data structure)
-        temp_servers = servers.copy()
+        # make sure all server id and shard id's are integer
+        temp_servers = {}
         
         for ss in servers.keys():
             temp_servers[convert_to_server_id(ss)] = servers[ss]
         
         servers = temp_servers
-
+        print(servers)
+        print(temp_servers)
 
     SCHEMA = schema
     shard_data = shards 
@@ -560,6 +562,7 @@ def spawned_successfully(hostname, shard_ids):
             if response.status_code == 200:
                 # Call config method on server
                 response = requests.post(f"http://{hostname}/config", json={"schema": SCHEMA, "shards": shard_ids})
+                print(f"Server {hostname} spawned successfully")
                 return True
             else:
                 tries += 1
@@ -612,7 +615,7 @@ def get_server_for_shard(shard_id):
     connection = sql_connection_pool.get_connection()
     cursor = connection.cursor()
     with mapT_lock:
-        cursor.execute(f"SELECT Server_id FROM MapT WHERE Shard_id={shard_id}")
+        cursor.execute(f"SELECT Server_id FROM MapT WHERE Shard_id=\"{shard_id}\"")
     server_id = cursor.fetchone()[0]
     cursor.close()
     connection.close()
@@ -646,7 +649,7 @@ def liveness_checker():
     while True:
         sleep(LIVENESS_SLEEP_TIME)
         with sih_lock:
-            sih_copy = server_id_to_hostname.deepcopy()
+            sih_copy = copy.deepcopy(server_id_to_hostname)
 
         shard_ids_for_new_servers = []      # List of lists
         for server_id, hostname in sih_copy.items():
