@@ -367,6 +367,9 @@ def read():
         with shared_queue_lock:
             data = shared_queue.get()
         read_result.extend(data)
+    
+    return jsonify({"shards_queried": shards,"data": read_result,"status":"success"}), 200
+
 
 
 @app.route('/write', methods=['POST'])
