@@ -225,7 +225,7 @@ def add():
             "status": "error"
         }), 400
 
-    n, new_shards, servers = payload['schema'], payload['shards'], payload['servers']
+    n, new_shards, servers = payload['n'], payload['new_shards'], payload['servers']
 
     if n>len(servers):
         return jsonify({
