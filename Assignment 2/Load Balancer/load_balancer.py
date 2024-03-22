@@ -12,11 +12,12 @@ from time import sleep
 import threading
 
 
-import requests
+import requests 
 
 app = Flask(__name__)
 sql_connection_pool = None
 NUM_SLOTS =512
+NUM_VIRTUAL_INSTANCES = 9
 MAX_RETRY = 100
 LIVENESS_SLEEP_TIME = 5
 NUM_REPLICA = 3
@@ -527,7 +528,21 @@ def read_thread_runner(shard_id,low, high,shared_queue,shared_queue_lock):
         hostname = server_id_to_hostname[server_id]
     try:
         # Send get request to server to read the data
+        # aquire read_count_lock
+        with read_count_lock_list[shard_id]:
+            read_count[shard_id] += 1
+            if read_count[shard_id] == 1:
+                write_lock_list[shard_id].acquire()
+        
         response = requests.post(f"http://{hostname}:5000/read", json={"shard": shard_id,"Stud_id": {"low": low, "high": high}})
+        
+        # aquire read_count_lock
+        with read_count_lock_list[shard_id]:
+            read_count[shard_id] -= 1
+            if read_count[shard_id] == 0:
+                write_lock_list[shard_id].release()
+        
+        
         if response.status_code == 200:
             print(f"Data successfully read from server {server_id}")
             with shared_queue_lock:
@@ -587,10 +602,11 @@ def insert_data_into_chds(servers, unsuccesful_servers=[]):
 
     for server_id in servers.keys():
         if server_id not in unsuccesful_servers:
-            for shard_id in servers[server_id]:
-                pos = get_server_slot(server_id, shard_id)
-                shard_to_server[shard_id][pos] = server_id
-                bisect.insort_left(fast_server_assignment_map[shard_id],pos)
+            for i in range(NUM_VIRTUAL_INSTANCES):
+                for shard_id in servers[server_id]:
+                    pos = get_server_slot(server_id, shard_id,i)
+                    shard_to_server[shard_id][pos] = server_id
+                    bisect.insort_left(fast_server_assignment_map[shard_id],pos)
 
 
 
@@ -610,9 +626,9 @@ def insert_data_into_shard_table(data):
     cursor.close()
     connection.close()
 
-def get_server_slot(server_id, shard_id):
+def get_server_slot(server_id, shard_id, instance):
     global shard_to_server
-    temp  = (server_id*37)*(server_id+71)+ shard_id*47 + 293
+    temp  = (server_id*37)*(server_id+71)+ shard_id*47 + 293*instance
     slot = temp % NUM_SLOTS
     while shard_to_server[shard_id][slot] is not None:
         slot = (slot+1)%NUM_SLOTS
