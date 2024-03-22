@@ -1,0 +1,81 @@
+{
+    "N": 7,
+    "schema": {
+        "columns": [
+            "Stud_id",
+            "Stud_name",
+            "Stud_marks"
+        ],
+        "dtypes": [
+            "Number",
+            "String",
+            "String"
+        ]
+    },
+    "shards": [
+        {
+            "Stud_id_low": 0,
+            "Shard_id": "1",
+            "Shard_size": 6144
+        },
+        {
+            "Stud_id_low": 6144,
+            "Shard_id": "2",
+            "Shard_size": 6144
+        },
+        {
+            "Stud_id_low": 12288,
+            "Shard_id": "3",
+            "Shard_size": 6144
+        },
+        {
+            "Stud_id_low": 18432,
+            "Shard_id": "4",
+            "Shard_size": 6144
+        }
+    ],
+    "servers": {
+        "Server0": [
+            "1",
+            "2",
+            "3",
+            "4"
+        ],
+        "Server1": [
+            "2",
+            "3",
+            "4",
+            "1"
+        ],
+        "Server2": [
+            "3",
+            "4",
+            "1",
+            "2"
+        ],
+        "Server3": [
+            "4",
+            "1",
+            "2",
+            "3"
+        ],
+        "Server4": [
+            "1",
+            "2",
+            "3",
+            "4"
+        ],
+        "Server5": [
+            "2",
+            "3",
+            "4",
+            "1"
+        ],
+        "Server6": [
+            "3",
+            "4",
+            "1",
+            "2"
+        ]
+    }
+}

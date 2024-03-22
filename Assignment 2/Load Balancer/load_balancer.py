@@ -147,7 +147,7 @@ def init():
                 continue
             temp_servers[convert_to_server_id(ss)] = [int(sh) for sh in servers[ss]]
             unique_server_ids.add(convert_to_server_id(ss))
-        
+
         for ss in servers.keys():
             if not all(char.isdigit() for char in ss[6:]):
                 random_server_id = random.randint(100000, 999999)
@@ -249,7 +249,7 @@ def add():
             "message": "<Error> Number of new servers (n) is less than newly added instances",
             "status": "failure"
         }), 400
-    
+
     # make sure all server id and shard id's are integer (Potential Bug: In copying the data structure)
     existing_servers = set(server_id_to_hostname.keys())
     temp_servers = {}
