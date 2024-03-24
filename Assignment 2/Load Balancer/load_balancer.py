@@ -142,7 +142,7 @@ def init():
                 server_id = server_ids[pos]
                 if server_id not in servers:
                     servers[server_id] = []
-                servers[server_id].append(shards[j]['Shard_id'])
+                servers[server_id].append(int(shards[j]['Shard_id']))
                 # Remove the chosen server from server_picker_list[j]
                 del server_picker_list[j][server_picker_list[j].index(pos)]
 
