@@ -13,7 +13,7 @@ LOW = 0
 HIGH = 24575
 
 # Requests configuration
-NUM_THREADS = 10
+NUM_THREADS = 100
 READS = 10000
 WRITES = 10000
 
@@ -52,7 +52,8 @@ def init(analysis_index, num_shards, num_replicas, num_servers):
 def write():
     start = time.time()
 
-    num_entries = random.randint(1, 10)
+    # num_entries = random.randint(1, 10)
+    num_entries = 2
 
     entries = []
     for _ in range(num_entries):
