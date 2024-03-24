@@ -399,6 +399,11 @@ def read():
 @app.route('/write', methods=['POST'])
 def write():
     payload = request.json
+    if 'data' not in payload:
+        return jsonify({
+            "message": "Payload must contain 'data' key",
+            "status": "error"
+        }), 400
     data = payload['data']
     # For Each entry:
     for entry in data:
@@ -467,6 +472,12 @@ read and write locks
 @app.route('/update', methods=['PUT'])
 def update():
     payload = request.json
+    if 'data' not in payload:
+        return jsonify({
+            "message": "Payload must contain  'data' keys",
+            "status": "error"
+        }), 400
+    
     data = payload['data']
     # Get shard_id from stud_id
     shard_id = get_shard_id_from_stud_id(data['Stud_id'])
@@ -494,6 +505,11 @@ def update():
 @app.route('/del', methods=['DELETE'])
 def delete():
     payload = request.json
+    if 'Stud_id' not in payload:
+        return jsonify({
+            "message": "Payload must contain 'Stud_id' key",
+            "status": "error"
+        }), 400
     # Get shard_id from stud_id
     shard_id = get_shard_id_from_stud_id(payload['Stud_id'])
     with write_lock_list[shard_id]:
