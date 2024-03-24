@@ -1,4 +1,4 @@
-# Assignment 2 Readme
+# Assignment 2 README
 
 ## Overview
 This assignment aims to implement a distributed system that implements sharding. In this readme, we will discuss the system design, data structures, and algorithms used in the implementation.
@@ -7,13 +7,9 @@ This assignment aims to implement a distributed system that implements sharding.
 
 ### **Caching Tables for Faster Access:**
 
-1. **Identifying Frequently Used Data**: Analyze the application's usage patterns and identify data that is frequently accessed or queried by multiple users. This could include frequently accessed records, lookup tables, or commonly used configuration settings.
+1. **Identifying Frequently Used Data**: Analyze the application's usage patterns and identify data that is frequently accessed or queried by multiple users. This includes the information of the shard-server mappings, server hostnames, shard meta data etc.
 
-2. **Cache Initialization**: Load the identified data from the MySQL tables into an in-memory cache when the application starts or on-demand. This can be done using libraries or frameworks that provide caching functionalities, such as Redis, Memcached, or built-in caching mechanisms in programming languages like Python (e.g., Python's `dict` or `lru_cache` decorator).
-
-3. **Cache Management**: Implement mechanisms to manage the cache, such as cache invalidation strategies (e.g., time-based expiration, invalidating cache on data updates) and memory management techniques (e.g., evicting least recently used items to free up memory).
-
-4. **Query Optimization**: Optimize database queries to minimize the amount of data fetched from the database. Use techniques like indexing, query optimization, and denormalization to reduce query execution times and improve overall database performance.
+2. **Cache Initialization**: Load the identified data from the MySQL tables into an in-memory data structure when the application starts or on-demand. This can be done at the time of initialization of meta data tables and while writing data into the tables.
 
 ### **Locking Mechanism for Reader-Writer Problem:**
 
@@ -51,21 +47,21 @@ By implementing these steps, we ensure that reader threads can access the shared
 
 ### **Efficient Request Allotment Mechanism:**
 
-    - Maintaining Sorted Server Positions: To implement efficient request allotment, a list containing server positions in the consistent hashing data structure is maintained in sorted order. This list allows for quick lookup of servers based on hash values.
+- Maintaining Sorted Server Positions: To implement efficient request allotment, a list containing server positions in the consistent hashing data structure is maintained in sorted order. This list allows for quick lookup of servers based on hash values.
 
-    - Finding Slot for Request: When a request is received, the algorithm finds the slot for the request in logarithmic time complexity (logN) by finding the upper bound of the hash value in the sorted list of server positions. This upper bound represents the server closest to the hash value on the hash ring.
+- Finding Slot for Request: When a request is received, the algorithm finds the slot for the request in logarithmic time complexity (logN) by finding the upper bound of the hash value in the sorted list of server positions. This upper bound represents the server closest to the hash value on the hash ring.
 
-    - Allotting Request to Server: Once the slot for the request is determined, the algorithm assigns the request to the corresponding server based on the position found in the sorted list. This server becomes responsible for handling the request.
+- Allotting Request to Server: Once the slot for the request is determined, the algorithm assigns the request to the corresponding server based on the position found in the sorted list. This server becomes responsible for handling the request.
 
 
 ### **Connection Pooling:**
 Connection pooling is a technique used to manage and reuse database connections efficiently. Instead of creating a new database connection for each request, connections are pooled and reused whenever possible. Key aspects of connection pooling in the code include:
 
-    - sql_connection_pool: This global variable represents a pool of database connections to the MySQL server. Connections are established and added to the pool during system initialization.
+- sql_connection_pool: This global variable represents a pool of database connections to the MySQL server. Connections are established and added to the pool during system initialization.
 
-    - Connection Reuse: When a thread needs to execute a database query, it retrieves a connection from the connection pool. After executing the query, the connection is returned to the pool for reuse by other threads. This minimizes the overhead associated with establishing new connections for each query.
+- Connection Reuse: When a thread needs to execute a database query, it retrieves a connection from the connection pool. After executing the query, the connection is returned to the pool for reuse by other threads. This minimizes the overhead associated with establishing new connections for each query.
 
-    - Connection Management: The connection pool manages the lifecycle of database connections, including establishing new connections, recycling idle connections, and closing connections that have been idle for too long. This ensures optimal utilization of database resources and improves overall system performance.
+- Connection Management: The connection pool manages the lifecycle of database connections, including establishing new connections, recycling idle connections, and closing connections that have been idle for too long. This ensures optimal utilization of database resources and improves overall system performance.
 
 ## Data Structures
 The code implements a load balancer for a distributed database system. It utilizes various global data structures to manage server instances, shards, and other metadata efficiently. Here's an explanation of the key global data structures used in the code:
