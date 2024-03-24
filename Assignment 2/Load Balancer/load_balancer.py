@@ -127,16 +127,25 @@ def init():
             server_ids.append(temp)
 
         num_shards = len(shards)
-        server_picker_list = [[i for i in range(total_server)]]*num_shards
+        server_picker_list=[]
+        for _ in range(num_shards):
+            server_picker_list.append([i for i in range(total_server)])
+        print(server_picker_list)
+
 
         for i in range(NUM_REPLICA):
             for j in range(num_shards):
+                print(server_picker_list)
+                # Randomly choose a server from server_picker_list[j]
                 pos = random.choice(server_picker_list[j])
+                print(f"Server chosen: {pos}")
                 server_id = server_ids[pos]
                 if server_id not in servers:
                     servers[server_id] = []
                 servers[server_id].append(shards[j]['Shard_id'])
-                server_picker_list[j].remove(pos)
+                # Remove the chosen server from server_picker_list[j]
+                del server_picker_list[j][server_picker_list[j].index(pos)]
+
 
     else:
         servers = payload['servers']
