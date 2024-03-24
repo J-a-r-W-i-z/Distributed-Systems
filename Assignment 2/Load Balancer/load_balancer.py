@@ -168,13 +168,13 @@ def init():
 
         servers = temp_servers
 
-        temp_shards = []
-        for shard in shards:
-            shard['Shard_id'] = int(shard['Shard_id'])
-            shard['Stud_id_low'] = int(shard['Stud_id_low'])
-            shard['Shard_size'] = int(shard['Shard_size'])
-            temp_shards.append(shard)
-        shards = temp_shards
+    temp_shards = []
+    for shard in shards:
+        shard['Shard_id'] = int(shard['Shard_id'])
+        shard['Stud_id_low'] = int(shard['Stud_id_low'])
+        shard['Shard_size'] = int(shard['Shard_size'])
+        temp_shards.append(shard)
+    shards = temp_shards
 
 
 
@@ -361,8 +361,8 @@ def rm():
             server_ids.remove(random_servers)
 
     for server_id in servers_to_remove:
-        remove_server(f"server{server_id}")
         remove_data_of_server(server_id)
+        remove_server(f"server{server_id}")
 
 
     N-=n
