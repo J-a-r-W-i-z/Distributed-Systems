@@ -12,7 +12,7 @@ from time import sleep
 import threading
 
 
-import requests 
+import requests
 
 app = Flask(__name__)
 sql_connection_pool = None
@@ -168,13 +168,13 @@ def init():
 
         servers = temp_servers
 
-        temp_shards = []
-        for shard in shards:
-            shard['Shard_id'] = int(shard['Shard_id'])
-            shard['Stud_id_low'] = int(shard['Stud_id_low'])
-            shard['Shard_size'] = int(shard['Shard_size'])
-            temp_shards.append(shard)
-        shards = temp_shards
+    temp_shards = []
+    for shard in shards:
+        shard['Shard_id'] = int(shard['Shard_id'])
+        shard['Stud_id_low'] = int(shard['Stud_id_low'])
+        shard['Shard_size'] = int(shard['Shard_size'])
+        temp_shards.append(shard)
+    shards = temp_shards
 
 
 
@@ -486,7 +486,7 @@ def update():
             "message": "Payload must contain  'data' keys",
             "status": "error"
         }), 400
-    
+
     data = payload['data']
     # Get shard_id from stud_id
     shard_id = get_shard_id_from_stud_id(data['Stud_id'])
@@ -558,16 +558,16 @@ def read_thread_runner(shard_id,low, high,shared_queue,shared_queue_lock):
             read_count[shard_id] += 1
             if read_count[shard_id] == 1:
                 write_lock_list[shard_id].acquire()
-        
+
         response = requests.post(f"http://{hostname}:5000/read", json={"shard": shard_id,"Stud_id": {"low": low, "high": high}})
-        
+
         # aquire read_count_lock
         with read_count_lock_list[shard_id]:
             read_count[shard_id] -= 1
             if read_count[shard_id] == 0:
                 write_lock_list[shard_id].release()
-        
-        
+
+
         if response.status_code == 200:
             print(f"Data successfully read from server {server_id}")
             with shared_queue_lock:
