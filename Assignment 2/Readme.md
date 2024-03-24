@@ -5,7 +5,7 @@ This assignment aims to implement a distributed system that implements sharding.
 
 ## System Design
 
-1. **Caching Tables for Faster Access:**
+### **Caching Tables for Faster Access:**
 
 1. **Identifying Frequently Used Data**: Analyze the application's usage patterns and identify data that is frequently accessed or queried by multiple users. This could include frequently accessed records, lookup tables, or commonly used configuration settings.
 
@@ -15,19 +15,19 @@ This assignment aims to implement a distributed system that implements sharding.
 
 4. **Query Optimization**: Optimize database queries to minimize the amount of data fetched from the database. Use techniques like indexing, query optimization, and denormalization to reduce query execution times and improve overall database performance.
 
-2. **Locking Mechanism for Reader-Writer Problem:**
+### **Locking Mechanism for Reader-Writer Problem:**
 
 In the context of concurrent programming, the reader-writer problem involves managing access to a shared resource (such as data stored in memory or a database) by multiple threads that may either read or write to the resource. The objective is to ensure that:
 
 - Multiple threads can read the resource simultaneously without interfering with each other (reader concurrency).
 - Only one thread can write to the resource at a time, and during a write operation, no other thread (readers or writers) can access the resource (writer exclusion).
 
-### Read and Write Locks
+#### Read and Write Locks
 
 - **Read Lock**: Allows multiple clients to read the resource at the same time.
 - **Write Lock**: Allows only one client to write to the resource at a time.
 
-### Reading Task:
+#### Reading Task:
 
 1. Acquire the read_count_lock.
 2. Increment the read_count.
@@ -39,7 +39,7 @@ In the context of concurrent programming, the reader-writer problem involves man
 8. If the read_count is 0 (i.e., no more readers), release the write lock to allow writers to access the resource.
 9. Release the read_count_lock.
 
-### Writing Task:
+#### Writing Task:
 
 1. Acquire the write lock to ensure exclusive access to the resource.
 2. Write the data to the shared resource.
@@ -49,7 +49,7 @@ By implementing these steps, we ensure that reader threads can access the shared
 
 
 
-3. **Efficient Request Allotment Mechanism:**
+### **Efficient Request Allotment Mechanism:**
 
     - Maintaining Sorted Server Positions: To implement efficient request allotment, a list containing server positions in the consistent hashing data structure is maintained in sorted order. This list allows for quick lookup of servers based on hash values.
 
@@ -58,7 +58,7 @@ By implementing these steps, we ensure that reader threads can access the shared
     - Allotting Request to Server: Once the slot for the request is determined, the algorithm assigns the request to the corresponding server based on the position found in the sorted list. This server becomes responsible for handling the request.
 
 
-4. **Connection Pooling:**
+### **Connection Pooling:**
 Connection pooling is a technique used to manage and reuse database connections efficiently. Instead of creating a new database connection for each request, connections are pooled and reused whenever possible. Key aspects of connection pooling in the code include:
 
     - sql_connection_pool: This global variable represents a pool of database connections to the MySQL server. Connections are established and added to the pool during system initialization.
