@@ -7,13 +7,9 @@ This assignment aims to implement a distributed system that implements sharding.
 
 ### **Caching Tables for Faster Access:**
 
-1. **Identifying Frequently Used Data**: Analyze the application's usage patterns and identify data that is frequently accessed or queried by multiple users. This could include frequently accessed records, lookup tables, or commonly used configuration settings.
+1. **Identifying Frequently Used Data**: Analyze the application's usage patterns and identify data that is frequently accessed or queried by multiple users. This includes the information of the shard-server mappings, server hostnames, shard meta data etc.
 
-2. **Cache Initialization**: Load the identified data from the MySQL tables into an in-memory cache when the application starts or on-demand. This can be done using libraries or frameworks that provide caching functionalities, such as Redis, Memcached, or built-in caching mechanisms in programming languages like Python (e.g., Python's `dict` or `lru_cache` decorator).
-
-3. **Cache Management**: Implement mechanisms to manage the cache, such as cache invalidation strategies (e.g., time-based expiration, invalidating cache on data updates) and memory management techniques (e.g., evicting least recently used items to free up memory).
-
-4. **Query Optimization**: Optimize database queries to minimize the amount of data fetched from the database. Use techniques like indexing, query optimization, and denormalization to reduce query execution times and improve overall database performance.
+2. **Cache Initialization**: Load the identified data from the MySQL tables into an in-memory data structure when the application starts or on-demand. This can be done at the time of initialization of meta data tables and while writing data into the tables.
 
 ### **Locking Mechanism for Reader-Writer Problem:**
 
