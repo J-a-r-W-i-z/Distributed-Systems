@@ -2,8 +2,8 @@
     "shards": 4,
     "replicas": 7,
     "servers": 7,
-    "read_time": 18.641980409622192,
-    "write_time": 1173.7114598751068,
-    "write_speeddown": 0.39775369002008854,
-    "read_speedup": 1.0099623439699226
+    "read_time": 55.61,
+    "write_time": 472.76,
+    "write_speedup": 0.72,
+    "read_speedup": 1.05
 }
