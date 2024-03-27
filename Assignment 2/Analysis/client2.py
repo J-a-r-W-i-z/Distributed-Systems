@@ -1,8 +1,10 @@
+import concurrent.futures
 import math
 import os
 import random
 import requests
 import sys
+import threading
 import time
 
 BASE_URL = "http://127.0.0.1:5000"
@@ -12,7 +14,8 @@ LOW = 0
 HIGH = 24575
 
 # Requests configuration
-NUM_THREADS = 100
+NUM_THREADS = 25
+Writes_per_thread = 400
 READS = 5
 WRITES = 10000
 
@@ -88,19 +91,34 @@ def read():
     return end - start
 
 
-def analysis():
-    writes_per_thread = WRITES // NUM_THREADS
-    reads_per_thread = READS // NUM_THREADS
+def thread_task():
+    for _ in range(Writes_per_thread):
+        read()
 
+
+def analysis():
+    # Spwan NUM_THREADS threads to write
+    # Create and start threads
     total_write_time = 0
     total_read_time = 0
 
-    total_writes = 0
+    threads = []
+    start = time.time()
+    for i in range(NUM_THREADS):
+        thread = threading.Thread(target=thread_task)
+        threads.append(thread)
+        thread.start()
+
+    # Wait for all threads to complete
+    for thread in threads:
+        thread.join()
+
+    end = time.time()
+    print("All threads have completed.")
+    total_read_time = end - start
     total_reads = 0
-
-    # perform parallel writes and then parallel readsl; count the total writes and total reads; use simple threading library
-
-    return total_write_time, total_read_time, total_writes
+    total_writes = Writes_per_thread*NUM_THREADS
+    return total_write_time, total_read_time, total_reads, total_writes
 
 
 if __name__ == '__main__':
@@ -120,15 +138,16 @@ if __name__ == '__main__':
     num_servers = 6 if len(sys.argv) <= 4 else int(sys.argv[4])
 
     num_servers = max(num_servers, num_replicas)
-    init(analysis_index, num_shards, num_replicas, num_servers)
+    # init(analysis_index, num_shards, num_replicas, num_servers)
 
-    total_write_time, total_read_time, total_writes = analysis()
+    total_write_time, total_read_time, total_reads, total_writes = analysis()
     output = {
         "shards": num_shards,
         "replicas": num_replicas,
         "servers": num_servers,
         "read_time": total_read_time,
         "write_time": total_write_time,
+        "reads": total_reads,
         "writes": total_writes
     }
 
