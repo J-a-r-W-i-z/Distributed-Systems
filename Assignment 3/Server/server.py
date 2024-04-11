@@ -1,12 +1,14 @@
 from flask import Flask, request, jsonify, g, Response
+import itertools
 import mysql.connector
+import random
+import requests
 from time import sleep
 import threading
-import random
-import itertools
 
 primary_map = {}
 primary_map_lock = threading.Lock()
+
 
 class MySQLConnection:
     _instance = None
@@ -145,21 +147,12 @@ def copy():
         cursor = g.connection.cursor()
 
         response = {}
-        print("shards:", shards)
         for shard in shards:
-            print("shard: ", shard)
             query = f"SELECT * FROM `{shard}`"
-            print("test0")
             cursor.execute(query)
-            print("test1")
             response[str(shard)] = list_to_colmap(cursor)
-            print("test2")
-
-        print("endo of looping")
 
         response['status'] = 'success'
-
-        print("returning response")
         return jsonify(response), 200
     except Exception as e:
         print(f"Error: {e}")
@@ -212,14 +205,30 @@ def read():
 def write():
     payload = request.json
 
-    if 'shard' not in payload or 'curr_idx' not in payload or 'data' not in payload:
+    if 'shard' not in payload or 'data' not in payload:
         return jsonify({
             "message": "Payload must contain 'shard', 'curr_idx' and 'data' keys",
             "status": "error"
         }), 400
 
-    shard, curr_idx, data = payload['shard'], payload['curr_idx'], payload['data']
+    shard, data = payload['shard'],  payload['data']
 
+    with open(f"{shard}.wal", "a") as f:
+        f.write(f"W: {data}\n")
+
+    if not is_primary(shard):
+        return write_to_db(shard, data)
+
+    if not response_status(shard, "write", payload):
+        return jsonify({
+            "message": "Failed to write data entries",
+            "status": "error"
+        }), 500
+
+    return write_to_db(shard, data)
+
+
+def write_to_db(shard, data):
     try:
         cursor = g.connection.cursor()
 
@@ -235,12 +244,10 @@ def write():
             query = f"INSERT INTO `{shard}` ({columns}) VALUES ({values})"
             cursor.execute(query)
 
-        new_idx = curr_idx + len(filtered_data)
         g.connection.commit()
 
         return jsonify({
             "message": "Data entries added",
-            "current_idx": new_idx,
             "status": "success"
         }), 200
     except Exception as e:
@@ -271,6 +278,23 @@ def update():
             "status": "error"
         }), 400
 
+    with open(f"{shard}.wal", "a") as f:
+        f.write(f"U: {data}\n")
+
+    if not is_primary(shard):
+        return update_in_db(shard, data)
+
+    if not response_status(shard, "update", payload):
+        return jsonify({
+            "message": "Failed to update data entry",
+            "status": "error"
+        }), 500
+
+    return update_in_db(shard, data)
+
+
+def update_in_db(shard, data):
+    stud_id = data['Stud_id']
     try:
         cursor = g.connection.cursor()
 
@@ -313,6 +337,22 @@ def delete():
 
     shard, stud_id = payload['shard'], payload['Stud_id']
 
+    with open(f"{shard}.wal", "a") as f:
+        f.write(f"D: {stud_id}\n")
+
+    if not is_primary(shard):
+        return delete_from_db(shard, stud_id)
+
+    if not response_status(shard, "del", payload):
+        return jsonify({
+            "message": "Failed to remove data entry",
+            "status": "error"
+        }), 500
+
+    return delete_from_db(shard, stud_id)
+
+
+def delete_from_db(shard, stud_id):
     try:
         cursor = g.connection.cursor()
 
@@ -340,22 +380,83 @@ def delete():
     finally:
         cursor.close()
 
+
 @app.route('/wal', methods=['POST'])
 def wal():
-    pass # TODO: Implement this endpoint that sends the contents of WAL file
+    pass  # TODO: Implement this endpoint that sends the contents of WAL file
     # payload form-
     # {
     #   "shard": "shard1"
     # }
 
+    payload = request.json
+
+    if 'shard' not in payload:
+        return jsonify({
+            "message": "Payload must contain 'shard' key",
+            "status": "error"
+        }), 400
+
+    shard = payload['shard']
+
+    try:
+        with open(f"{shard}.wal", "r") as f:
+            return Response(f.read(), mimetype='text/plain')
+    except FileNotFoundError:
+        return jsonify({
+            "message": f"WAL file for shard {shard} not found",
+            "status": "error"
+        }), 404
+
+
 @app.route('/make_primary', methods=['POST'])
 def make_primary():
-    pass # TODO: Implement this endpoint that makes this server primary for particular shard (Just add to primary_map)
+    # TODO: Implement this endpoint that makes this server primary for particular shard (Just add to primary_map)
+    pass
     # payload form-
     # {
     #   "shard": "shard1",
     #   "secondary": ["server1_hostname", "server2_hostname"]
     # }
+    payload = request.json
+
+    if 'shard' not in payload or 'secondary' not in payload:
+        return jsonify({
+            "message": "Payload must contain 'shard' and 'secondary' keys",
+            "status": "error"
+        }), 400
+
+    shard, secondary = payload['shard'], payload['secondary']
+
+    if not isinstance(secondary, list):
+        return jsonify({
+            "message": "Secondary must be a list of hostnames",
+            "status": "error"
+        }), 400
+
+    with primary_map_lock:
+        primary_map[shard] = secondary
+    return jsonify({
+        "status": "success",
+    }), 200
+
+
+def is_primary(shard):
+    with primary_map_lock:
+        return shard in primary_map
+
+
+def response_status(shard, endpoint, payload):
+    with primary_map_lock:
+        secondary_servers = primary_map[shard]
+
+    responses = []
+    for hostname in secondary_servers:
+        response = requests.delete(
+            f"http://{hostname}:5000/{endpoint}", json=payload)
+        responses.append(response)
+
+    return all(response.status_code == 200 for response in responses)
 
 
 def list_to_colmap(cursor):
