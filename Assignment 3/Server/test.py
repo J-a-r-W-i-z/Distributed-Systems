@@ -1,20 +1,27 @@
+from flask import Flask, request, jsonify, g, Response
+import itertools
 import mysql.connector
+import random
+import requests
+from time import sleep
+import threading
 
-# Establish connection to MySQL server
-connection = mysql.connector.connect(
-    host='localhost',
-    database='stud_test',
-    user='root',
-    password='password'
-)
+app = Flask(__name__)
 
-# Check if the connection is successful
-if connection.is_connected():
-    print("Connected to MySQL database")
-else:
-    print("Failed to connect to MySQL database")
 
-# You can now perform operations on the database using this connection
+@app.route('/get', methods=['GET'])
+def test():
+    with open('test.wal', 'r') as f:
+        return Response(f.read(), mimetype='text/plain')
 
-# Don't forget to close the connection when you're done
-connection.close()
+
+@app.route('/set', methods=['POST'])
+def test1():
+    with open('test.wal', 'a') as f:
+        f.write("hello world4\n")
+
+    return "ok"
+
+
+if __name__ == '__main__':
+    app.run(debug=False, port=5000, host="0.0.0.0", threaded=True)
