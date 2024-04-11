@@ -2,7 +2,6 @@ import bisect
 from collections import deque
 import queue
 from flask import Flask, request, jsonify, Response
-# import mysql.connector
 import os
 import subprocess
 import random
@@ -98,3 +97,8 @@ def liveness_checker():
         # Spawn new servers for shards of dead servers
         requests.post("http://lb:5000/spawn_servers",
                       json={"shard_ids_for_new_servers": shard_ids_for_new_servers})
+
+
+if __name__ == '__main__':
+    threading.Thread(target=liveness_checker).start()
+    app.run(debug=False, port=5000, host="0.0.0.0", threaded=True)
