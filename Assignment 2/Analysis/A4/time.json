@@ -1,0 +1,11 @@
+{
+    "shards": 4,
+    "replicas": 3,
+    "servers": 6,
+    "read_time": 7.8422935009002686,
+    "write_time": 0,
+    "reads": 0,
+    "writes": 500,
+    "write_speeddown": 0.0,
+    "read_speedup": 7.463377900008583
+}

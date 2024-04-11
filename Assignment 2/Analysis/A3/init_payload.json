@@ -1,1 +1,119 @@
-{"N": 10, "schema": {"columns": ["Stud_id", "Stud_name", "Stud_marks"], "dtypes": ["Number", "String", "String"]}, "shards": [{"Stud_id_low": 0, "Shard_id": "1", "Shard_size": 4096}, {"Stud_id_low": 4096, "Shard_id": "2", "Shard_size": 4096}, {"Stud_id_low": 8192, "Shard_id": "3", "Shard_size": 4096}, {"Stud_id_low": 12288, "Shard_id": "4", "Shard_size": 4096}, {"Stud_id_low": 16384, "Shard_id": "5", "Shard_size": 4096}, {"Stud_id_low": 20480, "Shard_id": "6", "Shard_size": 4096}], "servers": {"Server0": ["1", "2", "3", "4", "5"], "Server1": ["2", "3", "4", "5", "6"], "Server2": ["3", "4", "5", "6", "1"], "Server3": ["4", "5", "6", "1", "2"], "Server4": ["5", "6", "1", "2", "3"], "Server5": ["6", "1", "2", "3", "4"], "Server6": ["1", "2", "3", "4", "5"], "Server7": ["2", "3", "4", "5", "6"], "Server8": ["3", "4", "5", "6", "1"], "Server9": ["4", "5", "6", "1", "2"]}}
+{
+    "N": 10,
+    "schema": {
+        "columns": [
+            "Stud_id",
+            "Stud_name",
+            "Stud_marks"
+        ],
+        "dtypes": [
+            "Number",
+            "String",
+            "String"
+        ]
+    },
+    "shards": [
+        {
+            "Stud_id_low": 0,
+            "Shard_id": "1",
+            "Shard_size": 4096
+        },
+        {
+            "Stud_id_low": 4096,
+            "Shard_id": "2",
+            "Shard_size": 4096
+        },
+        {
+            "Stud_id_low": 8192,
+            "Shard_id": "3",
+            "Shard_size": 4096
+        },
+        {
+            "Stud_id_low": 12288,
+            "Shard_id": "4",
+            "Shard_size": 4096
+        },
+        {
+            "Stud_id_low": 16384,
+            "Shard_id": "5",
+            "Shard_size": 4096
+        },
+        {
+            "Stud_id_low": 20480,
+            "Shard_id": "6",
+            "Shard_size": 4096
+        }
+    ],
+    "servers": {
+        "Server0": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+        ],
+        "Server1": [
+            "2",
+            "3",
+            "4",
+            "5",
+            "6"
+        ],
+        "Server2": [
+            "3",
+            "4",
+            "5",
+            "6",
+            "1"
+        ],
+        "Server3": [
+            "4",
+            "5",
+            "6",
+            "1",
+            "2"
+        ],
+        "Server4": [
+            "5",
+            "6",
+            "1",
+            "2",
+            "3"
+        ],
+        "Server5": [
+            "6",
+            "1",
+            "2",
+            "3",
+            "4"
+        ],
+        "Server6": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+        ],
+        "Server7": [
+            "2",
+            "3",
+            "4",
+            "5",
+            "6"
+        ],
+        "Server8": [
+            "3",
+            "4",
+            "5",
+            "6",
+            "1"
+        ],
+        "Server9": [
+            "4",
+            "5",
+            "6",
+            "1",
+            "2"
+        ]
+    }
+}
