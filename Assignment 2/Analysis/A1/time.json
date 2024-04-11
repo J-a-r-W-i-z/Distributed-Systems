@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {
     "shards": 3,
     "replicas": 2,
@@ -7,3 +8,6 @@
     "reads": 10000,
     "writes": 10000
 }
+=======
+{"shards": 3, "replicas": 2, "servers": 3, "read_time": 58.53, "write_time": 340.04, "reads": 10000, "writes": 10000}
+>>>>>>> 4acb16679bd092512f204aa6b4e1583760a00a48
