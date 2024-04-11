@@ -4,7 +4,7 @@
 NETWORK_NAME = assignment2_myNetwork
 CONTROLLER_IMAGE_NAME = controller
 WEB_SERVER_IMAGE_NAME = web-server
-SHARD_MANAGER_IMAGE_NAME = shardmanager
+SHARD_MANAGER_IMAGE_NAME = shard-manager
 
 # Targets and Rules
 

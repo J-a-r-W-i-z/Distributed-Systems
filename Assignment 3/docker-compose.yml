@@ -2,7 +2,7 @@
 #-----------------------
 version: "3"
 services:
-  test_controller:
+  load_balancer:
     expose:
       - 5000
     build: ./"Load Balancer" # Path to the Dockerfile
@@ -17,6 +17,22 @@ services:
       - myNetwork # Need to define net1 in the compose file
     environment:
       - N=3
+    hostname: lb
+  
+  shard_manager:
+    build: ./"Shard Manager" # Path to the Dockerfile
+    image: shard-manager
+    container_name: sm
+    ports:
+      - "5001:5000" # Exposing port to host
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock    # This share host’s the docker daemon with the container. Now, the container can spawn other containers just like host
+    privileged: true # This should be true to share the docker daemon
+    networks:
+      - myNetwork # Need to define net1 in the compose file
+    environment:
+      - N=3
+    hostname: sm
 
 networks:
   myNetwork: {}
