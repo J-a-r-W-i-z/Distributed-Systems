@@ -554,12 +554,12 @@ def get_server_to_hostname():
     with sih_lock:
         return jsonify(server_id_to_hostname), 200
     
-@app.route('./get_server_id_to_shard', methods=['GET'])
+@app.route('/get_server_id_to_shard', methods=['GET'])
 def get_server_id_to_shard():
     with sis_lock:
         return jsonify(server_id_to_shard), 200
     
-@app.route('./remove_metadata', method=['POST'])
+@app.route('/remove_metadata', method=['POST'])
 def remove_metadata():
     server_id = request.json['server_id']
     try:

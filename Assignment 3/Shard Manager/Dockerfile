@@ -3,7 +3,7 @@ FROM python:3.8-slim
 
 WORKDIR /app
 
-COPY load_balancer.py .
+COPY shard_manager.py .
 
 RUN apt-get update && apt-get install -y sudo
 
