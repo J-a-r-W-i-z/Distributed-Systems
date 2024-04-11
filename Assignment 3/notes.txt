@@ -1,0 +1,5 @@
+shard manager fetches metadata from the load balancer whenever required.
+shard manager selects primary server for each shard. (Selects randomly among servers having most updated logs)
+shard manager gives info about the hostname of the secondary servers to the primary servers after selecting it as primary.
+primary server stores a dict that keeps track of shard_id to secondary servers mapping.
+all servers need to store WAL file on disk. They need to update the WAL file before making any changes to the database.

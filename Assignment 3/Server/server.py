@@ -1,9 +1,12 @@
 from flask import Flask, request, jsonify, g, Response
 import mysql.connector
 from time import sleep
+import threading
 import random
 import itertools
 
+primary_map = {}
+primary_map_lock = threading.Lock()
 
 class MySQLConnection:
     _instance = None
@@ -205,7 +208,7 @@ def read():
         cursor.close()
 
 
-@app.route('/write', methods=['POST'])
+@app.route('/write', methods=['POST'])  # TODO: Update according to assign 3
 def write():
     payload = request.json
 
@@ -250,7 +253,7 @@ def write():
         cursor.close()
 
 
-@app.route('/update', methods=['PUT'])
+@app.route('/update', methods=['PUT'])  # TODO: Update according to assign 3
 def update():
     payload = request.json
 
@@ -298,7 +301,7 @@ def update():
         cursor.close()
 
 
-@app.route('/del', methods=['DELETE'])
+@app.route('/del', methods=['DELETE'])  # TODO: Update according to assign 3
 def delete():
     payload = request.json
 
@@ -336,6 +339,23 @@ def delete():
         }), 500
     finally:
         cursor.close()
+
+@app.route('/wal', methods=['POST'])
+def wal():
+    pass # TODO: Implement this endpoint that sends the contents of WAL file
+    # payload form-
+    # {
+    #   "shard": "shard1"
+    # }
+
+@app.route('/make_primary', methods=['POST'])
+def make_primary():
+    pass # TODO: Implement this endpoint that makes this server primary for particular shard (Just add to primary_map)
+    # payload form-
+    # {
+    #   "shard": "shard1",
+    #   "secondary": ["server1_hostname", "server2_hostname"]
+    # }
 
 
 def list_to_colmap(cursor):
