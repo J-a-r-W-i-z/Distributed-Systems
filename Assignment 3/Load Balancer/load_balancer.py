@@ -229,7 +229,15 @@ def status():
     response['N'] = total_servers
     response['schema'] = SCHEMA
     with shard_data_lock:
-        response['shards'] = shard_data
+        temp = copy.deepcopy(shard_data)
+
+    # Add primary server data
+    primary_servers = requests.get("http://sm:5000/get_primary").json()
+    for shard in temp:
+        shard_id = shard['Shard_id']
+        shard['primary_server'] = primary_servers[shard_id]
+    
+    response['shards'] = temp
     with sis_lock:
         response['servers'] = server_id_to_shard
 
@@ -550,8 +558,24 @@ def delete():
 
     return jsonify({"message": f"Data entry with Stud_id:{payload['Stud_id']} removed", "status": "success"}), 200
 
-# Internal Utility API's
+# Write and api endpoint to return the data of a server
+@app.route('/read/<server_id>', methods=['GET'])
+def read_server_data(server_id):
+    with sih_lock:
+        if server_id not in server_id_to_hostname:
+            return jsonify({"message": f"Server {server_id} not found", "status": "error"}), 400
+        hostname = server_id_to_hostname[server_id]
+    try:
+        response = requests.get(
+            f"http://{hostname}:5000/copy")
+        if response.status_code == 200:
+            return jsonify(response.json())
+        else:
+            return jsonify({"message": f"Error occured while reading data from server {server_id}", "status": "error"}), 400
+    except requests.exceptions.RequestException as e:
+        return jsonify({"message": f"Exception occured while reading data from server {server_id}: {e}", "status": "error"}), 400
 
+# Internal Utility API's
 
 @app.route('/get_server_to_hostname', methods=['GET'])
 def get_server_to_hostname():
@@ -565,7 +589,7 @@ def get_server_id_to_shard():
         return jsonify(server_id_to_shard), 200
 
 
-@app.route('/remove_metadata', method=['POST'])
+@app.route('/remove_metadata', methods=['POST'])
 def remove_metadata():
     server_id = request.json['server_id']
     try:
@@ -593,7 +617,7 @@ def spawn_servers():
                 f"Couldn't spawn server {server_id} with hostname {hostname} successfully")
 
         for shard_id in shard_ids_for_new_servers[i]:
-            source_server_id = get_server_for_shard(shard_id)
+            source_server_id = get_primary_for_shard(shard_id)
             # Get data from source server using copy endpoint
             with sih_lock:
                 source_hostname = server_id_to_hostname[source_server_id]
@@ -841,11 +865,10 @@ def remove_data_of_server(server_id):
     connection.close()
 
 
-def get_server_for_shard(shard_id):
-    with fsa_lock, ss_lock:
-        server_id = shard_to_server[shard_id][fast_server_assignment_map[shard_id][0]]
-
-    return server_id
+def get_primary_for_shard(shard_id):
+    response = requests.get(f"http://sm:5000/get_primary")
+    primary_servers = response.json()
+    return primary_servers[shard_id]
 
 
 def get_servers_for_shards(shard_id):

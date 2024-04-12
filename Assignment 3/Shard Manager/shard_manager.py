@@ -68,6 +68,11 @@ def update_primary_if_required():
             print(response.status_code)
 
 
+@app.route('/get_primary', methods=['GET'])
+def get_primary():
+    return jsonify(PRIMARY_SERVERS)
+
+
 def liveness_checker():
     while True:
         sleep(LIVENESS_SLEEP_TIME)
