@@ -1,7 +1,7 @@
 # Makefile for Docker commands
 
 # Variables
-NETWORK_NAME = assignment2_myNetwork
+NETWORK_NAME = assignment3_myNetwork
 CONTROLLER_IMAGE_NAME = controller
 WEB_SERVER_IMAGE_NAME = web-server
 SHARD_MANAGER_IMAGE_NAME = shard-manager

@@ -3,3 +3,13 @@ shard manager selects primary server for each shard. (Selects randomly among ser
 shard manager gives info about the hostname of the secondary servers to the primary servers after selecting it as primary.
 primary server stores a dict that keeps track of shard_id to secondary servers mapping.
 all servers need to store WAL file on disk. They need to update the WAL file before making any changes to the database.
+
+
+server: server0
+lb  | starting wal
+lb  | path:  /app
+lb  | Dockerfile
+lb  | deploy.sh
+lb  | server.py
+lb  | test.py
+lb  | Error: [Errno 13] Permission denied: '/app/wal'

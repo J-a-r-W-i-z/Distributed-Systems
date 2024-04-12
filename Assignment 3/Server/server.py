@@ -3,6 +3,7 @@ import itertools
 import mysql.connector
 import random
 import requests
+import os
 from time import sleep
 import threading
 
@@ -383,12 +384,7 @@ def delete_from_db(shard, stud_id):
 
 @app.route('/wal', methods=['POST'])
 def wal():
-    pass  # TODO: Implement this endpoint that sends the contents of WAL file
-    # payload form-
-    # {
-    #   "shard": "shard1"
-    # }
-
+    print("starting wal")
     payload = request.json
 
     if 'shard' not in payload:
@@ -400,19 +396,43 @@ def wal():
     shard = payload['shard']
 
     try:
-        with open(f"{shard}.wal", "r") as f:
-            return Response(f.read(), mimetype='text/plain')
-    except FileNotFoundError:
+        # current path
+        path = os.getcwd()
+        print("path: ", path)
+        os.system("ls")
+
+        # print whether there is permission to create a file
+        print("Permission: ", os.access(path, os.W_OK))
+
+        # create a new directory called wal if not exists in the current path
+        if not os.path.exists(f"{path}/wal"):
+            os.makedirs(f"{path}/wal")
+
+        try:
+            print("file contents")
+            with open(f"{path}/wal/{shard}.wal", "a") as f:
+                print(f.read())
+                return Response(f.read(), mimetype='text/plain')
+        except Exception as e:
+            print("Exception", e)
+
+    except OSError as e:
+        print(f"Error: {e}")
         return jsonify({
-            "message": f"WAL file for shard {shard} not found",
+            "message": f"Failed to read WAL file for shard {shard}",
             "status": "error"
-        }), 404
+        }), 500
+    # except FileNotFoundError:
+    #     return jsonify({
+    #         "message": f"WAL file for shard {shard} not found",
+    #         "status": "error"
+    #     }), 404
 
 
 @app.route('/make_primary', methods=['POST'])
 def make_primary():
     # TODO: Implement this endpoint that makes this server primary for particular shard (Just add to primary_map)
-    pass
+    # pass
     # payload form-
     # {
     #   "shard": "shard1",

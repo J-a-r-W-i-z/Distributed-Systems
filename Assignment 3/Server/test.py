@@ -1,27 +1,9 @@
-from flask import Flask, request, jsonify, g, Response
-import itertools
-import mysql.connector
-import random
-import requests
-from time import sleep
-import threading
+import os
 
-app = Flask(__name__)
+path = os.getcwd()
+print("path:", path)
+os.system("ls")
 
-
-@app.route('/get', methods=['GET'])
-def test():
-    with open('test.wal', 'r') as f:
-        return Response(f.read(), mimetype='text/plain')
-
-
-@app.route('/set', methods=['POST'])
-def test1():
-    with open('test.wal', 'a') as f:
-        f.write("hello world4\n")
-
-    return "ok"
-
-
-if __name__ == '__main__':
-    app.run(debug=False, port=5000, host="0.0.0.0", threaded=True)
+# create a new directory called wal if not exists in the current path
+if not os.path.exists(f"{path}/wal"):
+    os.makedirs(f"{path}/wal")

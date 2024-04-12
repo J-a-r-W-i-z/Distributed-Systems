@@ -23,7 +23,7 @@ def primary_elect():
     server_id_to_shard = requests.get(
         "http://lb:5000/get_server_id_to_shard").json()
     servers_to_hostname = requests.get(
-        "http://lb:5000/get_servers_to_hostname").json()
+        "http://lb:5000/get_server_to_hostname").json()
     servers = []
     for server_id, shard_ids in server_id_to_shard.items():
         if shard_id in shard_ids:
@@ -32,6 +32,7 @@ def primary_elect():
         return Response(status=404)
     wal_length = []
     for server in servers:
+        print("server:", servers_to_hostname[server])
         response = requests.post(
             f"http://{servers_to_hostname[server]}:5000/wal", json={"shard": shard_id})
         lines = response.text.split("\n")
@@ -48,8 +49,8 @@ def primary_elect():
             secondary_servers.append(servers_to_hostname[server])
     try:
         PRIMARY_SERVERS[shard_id] = primary_server
-        response = requests.post(f"http://{servers_to_hostname[primary_server]}:5000/primary_elect", json={
-                                 "shard": shard_id, "secondary_servers": secondary_servers})
+        response = requests.post(f"http://{servers_to_hostname[primary_server]}:5000/make_primary", json={
+                                 "shard": shard_id, "secondary": secondary_servers})
         if response.status_code != 200:
             raise Exception()
     except:
@@ -75,7 +76,7 @@ def liveness_checker():
         try:
             # Get the list of all the servers
             servers_to_hostname = requests.get(
-                "http://lb:5000/get_servers_to_hostname").json()
+                "http://lb:5000/get_server_to_hostname").json()
         except:
             continue
 
@@ -94,6 +95,8 @@ def liveness_checker():
                 requests.post("http://sm:5000/update_primary_if_required",
                               json={"deleted_servers": [server_id]})
 
+        if len(shard_ids_for_new_servers) == 0:
+            continue
         # Spawn new servers for shards of dead servers
         requests.post("http://lb:5000/spawn_servers",
                       json={"shard_ids_for_new_servers": shard_ids_for_new_servers})

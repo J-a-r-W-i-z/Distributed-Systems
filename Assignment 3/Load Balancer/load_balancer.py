@@ -209,9 +209,10 @@ def init():
         return jsonify({"message": "Couldn't spawn all servers successfully", "status": "error", "unsuccesful_servers": unsuccesful_servers}), 207
 
     # Elect primary servers for each shard
-    for shard_id in server_id_to_shard[server_id]:
+    for sh in shards:
+        shard_id = sh['Shard_id']
         response = requests.post(f"http://sm:5000/primary_elect", json={
-                                 "shard_id": shard_id, "server_id_to_shard": server_id_to_shard, "servers_to_hostname": server_id_to_hostname})
+                                 "shard_id": shard_id})
         if response.status_code != 200:
             return jsonify({"message": f"Error occured while electing primary server for shard {shard_id}", "status": "error"}), 400
 
@@ -565,7 +566,7 @@ def get_server_id_to_shard():
         return jsonify(server_id_to_shard), 200
 
 
-@app.route('/remove_metadata', method=['POST'])
+@app.route('/remove_metadata', methods=['POST'])
 def remove_metadata():
     server_id = request.json['server_id']
     try:
@@ -618,6 +619,8 @@ def spawn_servers():
             except requests.exceptions.RequestException as e:
                 print(f"Error occured while transfering data")
                 continue
+
+    return jsonify({"message": "New servers spawned successfully", "status": "success"}), 200
 
 # Utility Functions
 
@@ -771,7 +774,7 @@ def get_server_id():
 
 
 def spawn_server(id, name, hostname):
-    command = f"sudo docker run --network assignment2_myNetwork --name {name} --hostname {hostname} -e SERVER_ID={id} web-server"
+    command = f"sudo docker run --network assignment3_myNetwork  --privileged --name {name} --hostname {hostname} -e SERVER_ID={id} web-server"
     subprocess.Popen(command, shell=True)
 
 

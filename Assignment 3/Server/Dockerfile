@@ -22,7 +22,10 @@ RUN pip install requests --break-system-packages
 COPY . /app
 
 # Set the working directory in the container
+RUN useradd -ms /bin/bash admin
+RUN chown -R admin /app
 WORKDIR /app
+USER admin
 
 # Command to run the application
 CMD ["mysqld"]
