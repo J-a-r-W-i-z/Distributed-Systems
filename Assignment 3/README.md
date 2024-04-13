@@ -84,7 +84,7 @@ The code implements a load balancer for a distributed database system. It utiliz
 
 6. `fast_server_assignment_map`: This dictionary maps shard IDs to lists of integers representing slots for fast server assignment. It is used in consistent hashing to quickly determine the assignment of shards to servers based on hash values.
 
-### Shard Manger
+### Shard Manager
 The shard manager is responsible for tracking the health of each server. It spawns new server whenever any server crashes. It is also responsible for maintaining a primary server for each of the shard.
 
 1. `PRIMARY_SERVERS`: This dictionary keeps the track of shard to primary server mapping. It is updated whenever any primary server is removed or crashes.
