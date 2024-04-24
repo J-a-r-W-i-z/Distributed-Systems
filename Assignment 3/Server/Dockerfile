@@ -27,5 +27,7 @@ RUN chown -R admin /app
 WORKDIR /app
 USER admin
 
+RUN mkdir /app/wal
+
 # Command to run the application
 CMD ["mysqld"]

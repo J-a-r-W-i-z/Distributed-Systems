@@ -11,7 +11,7 @@ from time import sleep
 import threading
 import requests
 
-PRIMARY_SERVERS = {}  # shard_id -> server_id
+PRIMARY_SERVERS = {}  # shard_id -> server_id (str->str)
 
 LIVENESS_SLEEP_TIME = 300
 app = Flask(__name__)
@@ -25,6 +25,8 @@ def primary_elect():
     servers_to_hostname = requests.get(
         "http://lb:5000/get_server_to_hostname").json()
     servers = []
+    print("server_id_to_shard:", server_id_to_shard)
+    print("servers_to_hostname:", servers_to_hostname)
     for server_id, shard_ids in server_id_to_shard.items():
         if shard_id in shard_ids:
             servers.append(server_id)
@@ -49,6 +51,7 @@ def primary_elect():
             secondary_servers.append(servers_to_hostname[server])
     try:
         PRIMARY_SERVERS[shard_id] = primary_server
+        print(f"The primary server for shard {shard_id} is {primary_server}")
         response = requests.post(f"http://{servers_to_hostname[primary_server]}:5000/make_primary", json={
                                  "shard": shard_id, "secondary": secondary_servers})
         if response.status_code != 200:
@@ -62,11 +65,16 @@ def primary_elect():
 @app.route('/update_primary_if_required', methods=['POST'])
 def update_primary_if_required():
     deleted_servers = request.json["deleted_servers"]
+    temp = []
+    for server in deleted_servers:
+        temp.append(str(server))
+    deleted_servers = temp
     for shard_id, server_id in PRIMARY_SERVERS.items():
         if server_id in deleted_servers:
             response = requests.post(
                 "http://sm:5000/primary_elect", json={"shard_id": shard_id})
             print(response.status_code)
+    return Response(status=200)
 
 
 @app.route('/get_primary', methods=['GET'])

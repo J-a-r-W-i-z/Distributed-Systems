@@ -25,4 +25,16 @@ stop:
 	docker ps -aq --filter network=$(NETWORK_NAME) | xargs -r docker rm
 	docker compose down
 
-.PHONY: lbban serverban chal ruk
+############## Server tests #############
+
+testbuild:
+	docker build -t servertest Server
+
+testrun:
+	docker run --name servertest -p 5000:5000 servertest
+
+teststop:
+	docker stop servertest
+	docker rm -f servertest
+
+.PHONY: lbban serverban chal ruk testbuild testrun teststop

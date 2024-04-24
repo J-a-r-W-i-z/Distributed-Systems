@@ -234,10 +234,12 @@ def status():
 
     # Add primary server data
     primary_servers = requests.get("http://sm:5000/get_primary").json()
+    print(f"primary servers: {primary_servers}")
     for shard in temp:
         shard_id = shard['Shard_id']
-        shard['primary_server'] = primary_servers[shard_id]
-    
+        print(f"shard_id: {shard_id}")
+        shard['primary_server'] = primary_servers[str(shard_id)]
+
     response['shards'] = temp
     with sis_lock:
         response['servers'] = server_id_to_shard
@@ -324,6 +326,16 @@ def add():
     if len(unsuccesful_servers) > 0:
         N -= len(unsuccesful_servers)
         return jsonify({"message": "Couldn't spawn all servers successfully", "status": "error", "unsuccesful_servers": unsuccesful_servers}), 207
+
+    print("server to hostname", server_id_to_hostname)
+    print("server to shard", server_id_to_shard)
+
+    for sh in new_shards:
+        shard_id = int(sh['Shard_id'])
+        response = requests.post(f"http://sm:5000/primary_elect", json={
+                                 "shard_id": shard_id})
+        if response.status_code != 200:
+            return jsonify({"message": f"Error occured while electing primary server for shard {shard_id}", "status": "error"}), 400
 
     N += n
     return jsonify({"N": N, "message": generate_response_string(list(servers.keys())), "status": "successful"}), 200
@@ -431,42 +443,32 @@ def write():
         # Get shard_id from stud_id
         shard_id = get_shard_id_from_stud_id(entry['Stud_id'])
         with write_lock_list[shard_id]:
-            # Get all servers where shard is present
-            server_ids = get_servers_for_shards(shard_id)
-            # Write entry in all replicas
-            for server_id in server_ids:
-                with sih_lock:
-                    hostname = server_id_to_hostname[server_id]
-                # Get valid_idx from ShardT table
-                connection = sql_connection_pool.get_connection()
+            # Get primary server for shard
+            server_id = get_primary_for_shard(shard_id)
+            with sih_lock:
+                print("SIH.....", server_id_to_hostname)
+                hostname = server_id_to_hostname[int(server_id)]
 
-                cursor = connection.cursor()
-                with shardT_lock:
-                    cursor.execute(
-                        f'SELECT Valid_idx FROM ShardT WHERE Shard_id={shard_id}')
-                valid_idx = cursor.fetchone()[0]
-                cursor.close()
-                connection.close()
-                try:
-                    response = requests.post(
-                        f"http://{hostname}:5000/write", json={"shard": shard_id, "data": [entry]})
-                    if response.status_code == 200:
-                        print(
-                            f"Data successfully written to server {server_id}")
-                    else:
-                        return jsonify({"message": f"Error occured while writing data to server {server_id}", "status": "error"}), 400
-                        # print(f"Error occured while writing data to server {server_id}")
-                except requests.exceptions.RequestException as e:
-                    return jsonify({"message": f"Exception occured while writing data to server {server_id}: {e}", "status": "error"}), 400
-                # Update vaild_idx in ShardT table
-                connection = sql_connection_pool.get_connection()
-                cursor = connection.cursor()
-                with shardT_lock:
-                    cursor.execute(
-                        f'UPDATE ShardT SET Valid_idx = Valid_idx + 1 WHERE Shard_id={shard_id}')
-                    connection.commit()
-                cursor.close()
-                connection.close()
+            try:
+                response = requests.post(
+                    f"http://{hostname}:5000/write", json={"shard": shard_id, "data": [entry]})
+                if response.status_code == 200:
+                    print(
+                        f"Data successfully written to server {server_id}")
+                else:
+                    return jsonify({"message": f"Error occured while writing data to server {server_id}", "status": "error"}), 400
+                    # print(f"Error occured while writing data to server {server_id}")
+            except requests.exceptions.RequestException as e:
+                return jsonify({"message": f"Exception occured while writing data to server {server_id}: {e}", "status": "error"}), 400
+            # Update vaild_idx in ShardT table
+            connection = sql_connection_pool.get_connection()
+            cursor = connection.cursor()
+            with shardT_lock:
+                cursor.execute(
+                    f'UPDATE ShardT SET Valid_idx = Valid_idx + 1 WHERE Shard_id={shard_id}')
+                connection.commit()
+            cursor.close()
+            connection.close()
 
     return jsonify({"message": f"{len(data)} Data entries added", "status": "success"}), 200
 
@@ -508,23 +510,21 @@ def update():
     # Get shard_id from stud_id
     shard_id = get_shard_id_from_stud_id(data['Stud_id'])
     with write_lock_list[shard_id]:
-        # Get all servers where shard is present
-        server_ids = get_servers_for_shards(shard_id)
-        # Write entry in all replicas
-        for server_id in server_ids:
-            with sih_lock:
-                hostname = server_id_to_hostname[server_id]
-            try:
-                # Send put request to server to update the data
-                response = requests.put(f"http://{hostname}:5000/update", json={
-                                        "shard": shard_id, "Stud_id": payload['Stud_id'], "data": data})
-                if response.status_code == 200:
-                    print(f"Data successfully written to server {server_id}")
-                else:
-                    return jsonify({"message": f"Error occured while writing data to server {server_id}", "status": "error"}), 400
-                    # print(f"Error occured while writing data to server {server_id}")
-            except requests.exceptions.RequestException as e:
-                return jsonify({"message": f"Exception occured while writing data to server {server_id}: {e}", "status": "error"}), 400
+        # Get primary server for shard
+        server_id = get_primary_for_shard(shard_id)
+        with sih_lock:
+            hostname = server_id_to_hostname[int(server_id)]
+        try:
+            # Send put request to server to update the data
+            response = requests.put(f"http://{hostname}:5000/update", json={
+                                    "shard": shard_id, "Stud_id": payload['Stud_id'], "data": data})
+            if response.status_code == 200:
+                print(f"Data successfully written to server {server_id}")
+            else:
+                return jsonify({"message": f"Error occured while writing data to server {server_id}", "status": "error"}), 400
+                # print(f"Error occured while writing data to server {server_id}")
+        except requests.exceptions.RequestException as e:
+            return jsonify({"message": f"Exception occured while writing data to server {server_id}: {e}", "status": "error"}), 400
 
     return jsonify({"message": f"Data entry for Stud_id:{payload['Stud_id']} updated", "status": "success"}), 200
 
@@ -540,35 +540,38 @@ def delete():
     # Get shard_id from stud_id
     shard_id = get_shard_id_from_stud_id(payload['Stud_id'])
     with write_lock_list[shard_id]:
-        # Get all servers where shard is present
-        server_ids = get_servers_for_shards(shard_id)
-        # Write entry in all replicas
-        for server_id in server_ids:
-            with sih_lock:
-                hostname = server_id_to_hostname[server_id]
-            try:
-                # Send del request to server to delete the data
-                response = requests.delete(
-                    f"http://{hostname}:5000/del", json={"shard": shard_id, "Stud_id": payload['Stud_id']})
-                if response.status_code == 200:
-                    print(f"Data successfully written to server {server_id}")
-                else:
-                    return jsonify({"message": f"Error occured while writing data to server {server_id}", "status": "error"}), 400
-            except requests.exceptions.RequestException as e:
-                return jsonify({"message": f"Exception occured while writing data to server {server_id}: {e}", "status": "error"}), 400
+        # Get primary server for shard
+        server_id = get_primary_for_shard(shard_id)
+        with sih_lock:
+            hostname = server_id_to_hostname[int(server_id)]
+        try:
+            # Send del request to server to delete the data
+            response = requests.delete(
+                f"http://{hostname}:5000/del", json={"shard": shard_id, "Stud_id": payload['Stud_id']})
+            if response.status_code == 200:
+                print(f"Data successfully written to server {server_id}")
+            else:
+                return jsonify({"message": f"Error occured while writing data to server {server_id}", "status": "error"}), 400
+        except requests.exceptions.RequestException as e:
+            return jsonify({"message": f"Exception occured while writing data to server {server_id}: {e}", "status": "error"}), 400
 
     return jsonify({"message": f"Data entry with Stud_id:{payload['Stud_id']} removed", "status": "success"}), 200
 
 # Write and api endpoint to return the data of a server
+
+
 @app.route('/read/<server_id>', methods=['GET'])
 def read_server_data(server_id):
+    server_id = int(server_id)
     with sih_lock:
         if server_id not in server_id_to_hostname:
             return jsonify({"message": f"Server {server_id} not found", "status": "error"}), 400
         hostname = server_id_to_hostname[server_id]
     try:
+        with sis_lock:
+            payload = server_id_to_shard[server_id]
         response = requests.get(
-            f"http://{hostname}:5000/copy")
+            f"http://{hostname}:5000/copy", json={"shards": payload})
         if response.status_code == 200:
             return jsonify(response.json())
         else:
@@ -577,6 +580,7 @@ def read_server_data(server_id):
         return jsonify({"message": f"Exception occured while reading data from server {server_id}: {e}", "status": "error"}), 400
 
 # Internal Utility API's
+
 
 @app.route('/get_server_to_hostname', methods=['GET'])
 def get_server_to_hostname():
@@ -621,7 +625,7 @@ def spawn_servers():
             source_server_id = get_primary_for_shard(shard_id)
             # Get data from source server using copy endpoint
             with sih_lock:
-                source_hostname = server_id_to_hostname[source_server_id]
+                source_hostname = server_id_to_hostname[int(source_server_id)]
             try:
                 response = requests.get(
                     f"http://{source_hostname}:5000/copy", json={"shards": [shard_id]})
@@ -871,7 +875,7 @@ def remove_data_of_server(server_id):
 def get_primary_for_shard(shard_id):
     response = requests.get(f"http://sm:5000/get_primary")
     primary_servers = response.json()
-    return primary_servers[shard_id]
+    return primary_servers[str(shard_id)]
 
 
 def get_servers_for_shards(shard_id):

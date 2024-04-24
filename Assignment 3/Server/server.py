@@ -214,7 +214,7 @@ def write():
 
     shard, data = payload['shard'],  payload['data']
 
-    with open(f"{shard}.wal", "a") as f:
+    with open(f"wal/{shard}.wal", "a") as f:
         f.write(f"W: {data}\n")
 
     if not is_primary(shard):
@@ -279,7 +279,7 @@ def update():
             "status": "error"
         }), 400
 
-    with open(f"{shard}.wal", "a") as f:
+    with open(f"wal/{shard}.wal", "a") as f:
         f.write(f"U: {data}\n")
 
     if not is_primary(shard):
@@ -338,18 +338,22 @@ def delete():
 
     shard, stud_id = payload['shard'], payload['Stud_id']
 
-    with open(f"{shard}.wal", "a") as f:
+    print("writing to wal")
+    with open(f"wal/{shard}.wal", "a") as f:
         f.write(f"D: {stud_id}\n")
 
     if not is_primary(shard):
+        print("not primary")
         return delete_from_db(shard, stud_id)
 
+    print('primary')
     if not response_status(shard, "del", payload):
         return jsonify({
             "message": "Failed to remove data entry",
             "status": "error"
         }), 500
 
+    print("sending back")
     return delete_from_db(shard, stud_id)
 
 
@@ -396,23 +400,13 @@ def wal():
     shard = payload['shard']
 
     try:
-        # current path
         path = os.getcwd()
-        print("path: ", path)
-        os.system("ls")
-
-        # print whether there is permission to create a file
-        print("Permission: ", os.access(path, os.W_OK))
-
-        # create a new directory called wal if not exists in the current path
-        if not os.path.exists(f"{path}/wal"):
-            os.makedirs(f"{path}/wal")
 
         try:
             print("file contents")
-            with open(f"{path}/wal/{shard}.wal", "a") as f:
+            with open(f"wal/{shard}.wal", "a+") as f:
                 print(f.read())
-                return Response(f.read(), mimetype='text/plain')
+                return "ok"
         except Exception as e:
             print("Exception", e)
 
@@ -472,8 +466,15 @@ def response_status(shard, endpoint, payload):
 
     responses = []
     for hostname in secondary_servers:
-        response = requests.delete(
-            f"http://{hostname}:5000/{endpoint}", json=payload)
+        if endpoint == "write":
+            response = requests.post(
+                f"http://{hostname}:5000/{endpoint}", json=payload)
+        elif endpoint == "update":
+            response = requests.put(
+                f"http://{hostname}:5000/{endpoint}", json=payload)
+        elif endpoint == "del":
+            response = requests.delete(
+                f"http://{hostname}:5000/{endpoint}", json=payload)
         responses.append(response)
 
     return all(response.status_code == 200 for response in responses)
